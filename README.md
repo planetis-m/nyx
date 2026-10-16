@@ -32,23 +32,16 @@ Run `nyx` in a repository root. The project is keyed by the nearest enclosing di
 
 Skills land in `<project>/<skillDir>/<skill>` for each selected target. Only detected targets start ticked in the wizard. Targets sharing a skill directory install each skill once.
 
-| Target | Skill directory |
+| Skill directory | Targets |
 | --- | --- |
-| Claude Code | `.claude/skills` |
-| Codex | `.agents/skills` |
-| Agents | `.agents/skills` |
-| Crush | `.crush/skills` |
-| Pi | `.pi/skills` |
-| Cursor | `.agents/skills` |
-| OpenCode | `.agents/skills` |
-| Gemini CLI | `.agents/skills` |
-| GitHub Copilot | `.agents/skills` |
-| Windsurf | `.windsurf/skills` |
-| Roo Code | `.roo/skills` |
-| Continue | `.continue/skills` |
-| Goose | `.goose/skills` |
-| Amp | `.agents/skills` |
-| Cline | `.agents/skills` |
+| `.agents/skills` | Codex, Agents, Cursor, OpenCode, Gemini CLI, GitHub Copilot, Amp, Cline |
+| `.claude/skills` | Claude Code |
+| `.crush/skills` | Crush |
+| `.pi/skills` | Pi |
+| `.windsurf/skills` | Windsurf |
+| `.roo/skills` | Roo Code |
+| `.continue/skills` | Continue |
+| `.goose/skills` | Goose |
 
 Detection honors `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, and `XDG_CONFIG_HOME` for the tools that use them.
 
