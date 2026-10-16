@@ -10,7 +10,7 @@ import std/paths
 import std/symlinks
 import std/[syncio, strutils, os, dirs, files, osproc, streams, envvars, tempfiles]
 import ../src/[state, catalog, repo, install, targets]
-import ../src/ui as ui
+import ../src/ui
 import paths, explain
 
 var failures = 0   # single-threaded test program
@@ -124,6 +124,37 @@ proc testTargets(tmp: Path) {.raises.} =
     when not defined(windows):
       setFilePermissions(exe, {fpUserRead, fpUserWrite, fpUserExec})
     check(detect(all[byId("continue")], bare, home), "Continue executable on PATH")
+
+    # Global skill directory resolution
+    putEnv("XDG_CONFIG_HOME", $config)
+    check(globalSkillDir(all[byId("crush")], home) == config / path("crush/skills"),
+          "Crush honors XDG_CONFIG_HOME")
+    check(globalSkillDir(all[byId("opencode")], home) == config / path("opencode/skills"),
+          "OpenCode honors XDG_CONFIG_HOME")
+    check(globalSkillDir(all[byId("windsurf")], home) == config / path("devin/skills"),
+          "Windsurf honors XDG_CONFIG_HOME")
+    check(globalSkillDir(all[byId("claude")], home) == home / path(".claude/skills"),
+          "Claude stays under home despite XDG_CONFIG_HOME")
+    check(globalSkillDir(all[byId("agy")], home) == home / path(".gemini/config/skills"),
+          "Antigravity stays under home despite XDG_CONFIG_HOME")
+    check(globalSkillDir(all[byId("amp")], home) == home / path(".config/agents/skills"),
+          "Amp's .config is literal, not XDG_CONFIG_HOME")
+    check(globalSkillDir(all[byId("codex")], home) == home / path(".agents/skills"),
+          "Codex stays under home")
+    check(globalSkillDirs(@["codex", "agents", "goose"], home) == @[home / path(".agents/skills")],
+          "shared home targets deduplicate")
+
+    putEnv("XDG_CONFIG_HOME", "")
+    check(globalSkillDir(all[byId("crush")], home) == home / path(".config/crush/skills"),
+          "Crush falls back to ~/.config")
+    check(globalSkillDir(all[byId("opencode")], home) == home / path(".config/opencode/skills"),
+          "OpenCode falls back to ~/.config")
+    check(globalSkillDir(all[byId("windsurf")], home) == home / path(".config/devin/skills"),
+          "Windsurf falls back to ~/.config")
+
+    # Global detection does not consider project markers
+    check(not detect(all[byId("agents")], GlobalRoot, home), "GlobalRoot ignores project markers")
+    check(detect(all[byId("crush")], GlobalRoot, home), "GlobalRoot detects home markers")
   finally:
     for (key, had, value) in saved:
       if had: putEnv(key, value)
@@ -204,6 +235,21 @@ proc testState(tmp: Path) {.raises.} =
   writeFile($(statePath(data)), "[1]")
   back = loadState(data, corrupt)
   check(corrupt, "non-object document is not trusted")
+
+  var gs = newState()
+  check(gs.findGlobal() == -1, "fresh state has no global project")
+  gs.projects.add Project(root: GlobalRoot, targets: @["crush"], skills: @["alpha"],
+    installs: @[Install(path: path("/home/.config/crush/skills/alpha"), skill: "alpha", mode: Link,
+                        source: path("/s/alpha"))],
+    dirs: @[path("/home/.config/crush/skills")])
+  gs.projects.add Project(root: path("/p"), targets: @["claude"], skills: @["alpha"])
+  check(gs.findGlobal() == 0, "findGlobal locates index 0")
+  check(gs.find(path("/p")) == 1, "find locates regular project at index 1")
+  saveState(data, gs)
+  let gback = loadState(data, corrupt)
+  check(not corrupt and gback.findGlobal() == 0 and gback.find(path("/p")) == 1,
+        "round trip preserves global project and project together")
+  check(gback.projects[0].root == GlobalRoot, "global root restored as GlobalRoot")
 
 proc testStale() =
   var s = newState()
@@ -439,17 +485,77 @@ proc testRetargetedLink(tmp: Path) {.raises.} =
     readFile($(other / path("SKILL.md"))) == "user's target",
         "resync preserves user link and target")
 
+proc testGlobalInstall(tmp: Path) {.raises.} =
+  let store = tmp / path("global-store")
+  makeStore(store)
+  let home = tmp / path("user-home")
+  let cfg = tmp / path("user-cfg")
+  createDir(home)
+  createDir(cfg)
+  var saved: seq[(string, bool, string)] = @[]
+  for key in ["XDG_CONFIG_HOME"]:
+    saved.add (key, existsEnv(key), getEnv(key))
+  putEnv("XDG_CONFIG_HOME", $cfg)
+  defer:
+    for (key, had, value) in saved:
+      if had: putEnv(key, value)
+      else: delEnv(key)
+
+  let all = allTargets()
+  let crushDir = globalSkillDir(all[byId("crush")], home)
+  let claudeDir = globalSkillDir(all[byId("claude")], home)
+  check(crushDir == cfg / path("crush/skills"), "global crush dir under XDG")
+  check(claudeDir == home / path(".claude/skills"), "global claude dir under home")
+
+  var g = Project(root: GlobalRoot)
+  var r = sync(g, store, @[crushDir, claudeDir], @["alpha"])
+  check(r.placed.len == 2 and g.installs.len == 2, "global skills installed")
+  check(symlinkExists(cfg / path("crush/skills/alpha")), "crush global link exists")
+  check(symlinkExists(home / path(".claude/skills/alpha")), "claude global link exists")
+
+  # Project install in another directory
+  let projRoot = tmp / path("my-project")
+  createDir(projRoot)
+  var p = Project(root: projRoot)
+  var pr = sync(p, store, @[path(".crush/skills")], @["alpha"])
+  check(pr.placed.len == 1 and p.installs.len == 1, "project skill installed")
+  check(symlinkExists(projRoot / path(".crush/skills/alpha")), "project link exists")
+
+  # Removing project does not remove global
+  let prep = removeAll(p)
+  check(prep.removed.len == 1, "project removed")
+  check(not symlinkExists(projRoot / path(".crush/skills/alpha")), "project link removed")
+  check(symlinkExists(cfg / path("crush/skills/alpha")), "global crush link remains")
+  check(symlinkExists(home / path(".claude/skills/alpha")), "global claude link remains")
+
+  # Removing global cleans up global and prunes empty dirs
+  let grep = removeAll(g)
+  check(grep.removed.len == 2, "global removed")
+  check(not symlinkExists(cfg / path("crush/skills/alpha")), "global crush link removed")
+  check(not symlinkExists(home / path(".claude/skills/alpha")), "global claude link removed")
+  check(not dirExists($(cfg / path("crush"))), "empty crush dir pruned")
+  check(not dirExists($(home / path(".claude"))), "empty claude dir pruned")
+
+proc testCliGlobal() {.raises.} =
+  let p1 = startProcess("bin/nyx", args = @["-g"], options = {poUsePath, poStdErrToStdOut})
+  defer: close(p1)
+  check(waitForExit(p1, 5000) != 0, "nyx -g without subcommand fails")
+
+  let p2 = startProcess("bin/nyx", args = @["--global"], options = {poUsePath, poStdErrToStdOut})
+  defer: close(p2)
+  check(waitForExit(p2, 5000) != 0, "nyx --global without subcommand fails")
+
 proc prompt(mode: string) =
   # Child mode: call the real prompts with pipe-backed stdin/stdout. Keeping
   # this in the test executable avoids compiling a second fixture program.
   if mode == "yes" or mode == "no":
-    let answer = ui.confirm("Proceed?", mode == "yes")
+    let answer = confirm("Proceed?", mode == "yes")
     echo "answer=", answer
   else:
-    let items = @[ui.Choice(label: "first"), ui.Choice(label: "second"),
-                  ui.Choice(label: "third")]
+    let items = @[Choice(label: "first"), Choice(label: "second"),
+                  Choice(label: "third")]
     var sel = @[false, true, false]
-    ui.choose(items, sel, minOne = mode == "required")
+    choose(items, sel, minOne = mode == "required")
     var answer = ""
     for selected in sel: answer.add(if selected: '1' else: '0')
     echo "answer=", answer
@@ -662,8 +768,10 @@ proc main() =
     testNames()
     testCatalog(tmp)
     testInstall(tmp)
+    testGlobalInstall(tmp)
     testRetargetedLink(tmp)
     testPrompts()
+    testCliGlobal()
     testGit(tmp)
   except ErrorCode as e:
     fail("raised " & $e)

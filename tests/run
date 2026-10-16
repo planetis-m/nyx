@@ -3,6 +3,7 @@ set -eu
 
 cd "$(dirname "$0")/.."
 mkdir -p bin
+nimony c "$@" -o:bin/nyx src/nyx.nim
 for test in tnyx tlinks trefresh; do
   nimony c "$@" -r "tests/$test.nim"
 done

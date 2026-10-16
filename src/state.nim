@@ -6,12 +6,13 @@
 ##   skills/      git clone of the skills repository; the one canonical copy
 ##                of every skill, which projects link to (or copy from)
 
-import std/appdirs as pathdirs
+import std/appdirs
 import std/[paths, syncio, os, dirs, files, json, envvars, times]
 
 const
   SchemaVersion* = 1
   DefaultCheckEvery* = 30 * 24 * 60 * 60   ## seconds between lazy update checks
+  GlobalRoot* = path("")
 
 type
   InstallMode* = enum
@@ -46,7 +47,7 @@ proc dataDir*(): Path =
   ## `NYX_HOME` overrides the platform data directory.
   result = path(getEnv("NYX_HOME"))
   if result == path(""):
-    result = pathdirs.getDataDir() / path("nyx")
+    result = appdirs.getDataDir() / path("nyx")
 
 proc statePath*(data: Path): Path = data / path("state.json")
 proc skillsDir*(data: Path): Path = data / path("skills")
@@ -62,6 +63,10 @@ proc find*(s: State; root: Path): int =
   result = -1
   for i in 0 ..< s.projects.len:
     if s.projects[i].root == root: return i
+
+proc findGlobal*(s: State): int =
+  ## Match the global project entry.
+  s.find(GlobalRoot)
 
 # --- project root ---------------------------------------------------------
 

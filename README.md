@@ -19,14 +19,17 @@ nimony c -o:bin/nyx src/nyx.nim
 ## Usage
 
 ```sh
-nyx          # set up this project, or show its status if already set up
-nyx setup    # set up or reconfigure this project
-nyx update   # update skills now
-nyx remove   # remove nyx from this project
-nyx -h       # help
+nyx             # set up this project, or show its status if already set up
+nyx setup       # set up or reconfigure this project
+nyx update      # update skills now
+nyx remove      # remove nyx from this project
+nyx setup -g    # set up or reconfigure user-level skill directories
+nyx update -g   # update skills now
+nyx remove -g   # remove nyx from user-level skill directories
+nyx -h          # help
 ```
 
-Run `nyx` in a repository root. The project is keyed by the nearest enclosing directory holding a `.git` entry.
+Run `nyx` in a repository root. The project is keyed by the nearest enclosing directory holding a `.git` entry. Pass `-g` or `--global` to work on the user's home skill directories instead of this project.
 
 ## Targets
 
