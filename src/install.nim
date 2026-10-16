@@ -47,6 +47,15 @@ proc ensureDir(dir: string; p: var Project) {.raises.} =
   createDir(path(dir))
   p.dirs.add dir
 
+proc linked(dir, file: string): bool =
+  ## Check only within the owned copy; configured directories above it may
+  ## legitimately be links. A replaced parent must never redirect our work.
+  var rel = file
+  while rel.len > 0:
+    if symlinkExists(dir / rel): return true
+    rel = parentDir(rel)
+  result = false
+
 proc copyTree(src, dest: string; files: var seq[string]) {.raises.} =
   ## Copy regular files and directories; symlinks inside a skill are skipped
   ## (neither yielded nor followed). A directory is yielded before its
@@ -54,11 +63,19 @@ proc copyTree(src, dest: string; files: var seq[string]) {.raises.} =
   for p in walkDirRec(path(src), yieldFilter = {pcFile, pcDir},
                       followFilter = {pcDir}, relative = true):
     let r = $p
+    if linked(dest, r): continue
     if dirExists(src / r):
       createDir(path(dest / r))
     else:
-      copyFileWithPermissions(path(src / r), path(dest / r))
-      if r notin files: files.add r
+      let existed = taken(dest / r)
+      var copied = false
+      try:
+        copyFileWithPermissions(path(src / r), path(dest / r))
+        copied = true
+      finally:
+        # A failed copy can still have created a partial destination file.
+        if (copied or not existed) and fileExists(dest / r) and r notin files:
+          files.add r
 
 proc removeEmptyDirs(dir: string) =
   ## Remove `dir` and its subdirectories bottom-up, but only the empty ones.
@@ -69,9 +86,9 @@ proc removeEmptyDirs(dir: string) =
     discard
   discard tryRemoveFinalDir(path(dir))
 
-proc removeOurFile(file: string) =
-  if fileExists(file) and not symlinkExists(file):
-    discard tryRemoveFile(path(file))
+proc removeOurFile(dir, file: string) =
+  if not linked(dir, file) and fileExists(dir / file):
+    discard tryRemoveFile(path(dir / file))
 
 proc pruneDirs(p: var Project) =
   ## Drop directories NYX created that are now empty, innermost first.
@@ -113,7 +130,7 @@ proc unplace*(inst: Install): bool =
     if tryRemoveFile(path(inst.path)) != Success:
       discard tryRemoveFinalDir(path(inst.path))   # directory links on Windows
   of Copy:
-    for f in inst.files: removeOurFile(inst.path / f)
+    for f in inst.files: removeOurFile(inst.path, f)
     removeEmptyDirs(inst.path)
   result = not taken(inst.path)
 
@@ -122,9 +139,14 @@ proc resync*(inst: var Install) {.raises.} =
   ## that vanished upstream keeps its last copy.
   if inst.mode != Copy or not intact(inst) or not dirExists(inst.source): return
   var files: seq[string] = @[]
-  copyTree(inst.source, inst.path, files)
+  try:
+    copyTree(inst.source, inst.path, files)
+  finally:
+    # Retain old ownership and any new partial work even if copying raises.
+    for f in files:
+      if f notin inst.files: inst.files.add f
   for f in inst.files:
-    if f notin files: removeOurFile(inst.path / f)
+    if f notin files: removeOurFile(inst.path, f)
   inst.files = files
 
 proc sync*(p: var Project; store: string; dirs, skills: seq[string];

@@ -408,7 +408,7 @@ proc testPrompts() {.raises.} =
 proc testRepo(tmp: string) {.raises.} =
   var o = ""
   # No access: a repository that is not there.
-  let r = finish(startClone("file://" & tmp / "missing-repo", tmp / "clone0"), o)
+  let r = repo.clone("file://" & tmp / "missing-repo", tmp / "clone0", o)
   check(r == NoAccess, "missing repository is no access, got " & $r)
   check(not dirExists(tmp / "clone0"), "failed clone leaves nothing")
 
@@ -417,7 +417,9 @@ proc testRepo(tmp: string) {.raises.} =
   let oldPath = getEnv("PATH")
   try:
     putEnv("PATH", tmp / "empty-bin")
-    check(finish(startPull(tmp), o) == NoGit, "git missing detected")
+    o = "stale output"
+    check(pull(tmp, o) == NoGit, "git missing detected")
+    check(o.len == 0, "missing git clears output")
   finally:
     if hadPath: putEnv("PATH", oldPath)
     else: delEnv("PATH")
@@ -428,11 +430,11 @@ proc testRepo(tmp: string) {.raises.} =
   check(sh(origin, ["init", "-q"]) == 0 and sh(origin, ["add", "-A"]) == 0 and
         sh(origin, ["commit", "-q", "-m", "one"]) == 0, "origin repo")
   let clone = tmp / "clone"
-  check(finish(startClone(origin, clone), o) == Done, "clone: " & o)
+  check(repo.clone(origin, clone, o) == Done, "clone: " & o)
   let before = head(clone)
   writeFile(origin / "beta" / "SKILL.md", skillMd("Beta v2."))
   check(sh(origin, ["commit", "-q", "-am", "two"]) == 0, "second commit")
-  check(finish(startPull(clone), o) == Done, "pull: " & o)
+  check(pull(clone, o) == Done, "pull: " & o)
   check(changedSkills(clone, before, head(clone)) == @["beta"], "changed skills")
   check(changedSkills(clone, head(clone), head(clone)).len == 0, "no change")
 

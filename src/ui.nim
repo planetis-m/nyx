@@ -1,4 +1,4 @@
-## Terminal look and interaction: colors, logo, prompts, progress.
+## Terminal look and interaction: colors, logo, prompts, and results.
 
 import std/[syncio, strutils, parseutils, terminal, colors, os]
 
@@ -187,25 +187,5 @@ proc choose*(items: seq[Choice]; sel: var seq[bool]; minOne: bool) =
         put "\x1b[" & $lines & "F\x1b[J"
       drawn = drawChoices(items, sel)
 
-# --- progress -------------------------------------------------------------
-
-proc spin*(label: string; frame: int) =
-  ## One spinner frame; call repeatedly while work runs, then `done`.
-  const frames = "|/-\\"
-  if interactive():
-    hideCursor(stdout)
-    put "\r  " & Ember & frames[frame mod 4] & " " & Bone & label & Reset
-
 proc done*(label, detail: string) =
-  ## Replace the spinner (if any) with a finished `+ label  detail` line.
-  if interactive():
-    eraseLine(stdout)
-    showCursor(stdout)
   line "  " & Gold & "+ " & Reset & alignLeft(label, 22) & dim(detail)
-
-proc unspin*() =
-  ## Clear a spinner line without printing a result.
-  if interactive():
-    eraseLine(stdout)
-    showCursor(stdout)
-    flushFile stdout

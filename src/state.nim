@@ -35,7 +35,7 @@ type
     version*: int
     lastCheck*: int         ## unix seconds of the last update check, 0 = never
     checkEvery*: int        ## seconds
-    repoRev*: string        ## skills commit after the last successful update
+    repoRev*: string        ## last skills commit applied to recorded installs
     projects*: seq[Project]
 
 proc newState*(): State =

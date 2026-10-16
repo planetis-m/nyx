@@ -83,17 +83,6 @@ proc targetNames(ids: seq[string]): string =
 
 # --- updating ---------------------------------------------------------------
 
-proc gitRun(label: string; j: Job; output: var string): GitResult =
-  ## Run a git job behind a spinner.
-  var frame = 0
-  if interactive():
-    while running(j):
-      spin(label, frame)
-      inc frame
-      sleepMs(70)
-  result = finish(j, output)
-  unspin()
-
 proc firstLine(output: string): string =
   ## First line of `output`, without surrounding blank space; "" when empty.
   result = ""
@@ -122,7 +111,7 @@ proc refresh(c: var Ctx; setup = false): bool =
   let store = skillsDir(c.data)
   let before = discover(store).names
   let fresh = not dirExists(store)
-  let oldRev = if fresh: "" else: head(store)
+  let oldRev = c.st.repoRev
   var output = ""
   var r = Done
   if fresh:
@@ -131,9 +120,9 @@ proc refresh(c: var Ctx; setup = false): bool =
     except:
       fail "cannot create " & c.data
       quit(1)
-    r = gitRun("downloading skills", startClone(repoUrl(), store), output)
+    r = repo.clone(repoUrl(), store, output)
   else:
-    r = gitRun("checking skills", startPull(store), output)
+    r = pull(store, output)
   c.st.lastCheck = now()
   if r != Done:
     explain(r, output, setup)
@@ -142,15 +131,21 @@ proc refresh(c: var Ctx; setup = false): bool =
 
   let newRev = head(store)
   let changed = changedSkills(store, oldRev, newRev)
+  # An absent revision or unavailable diff cannot establish what was applied.
+  # Recopy conservatively; an unchanged, known revision needs no work.
+  let all = oldRev.len == 0 or newRev.len == 0 or
+    (oldRev != newRev and changed.len == 0)
   let after = discover(store)
+  var complete = true
   for p in mitems(c.st.projects):
     for inst in mitems(p.installs):
-      if inst.skill in changed:
+      if all or inst.skill in changed:
         try:
           resync(inst)
         except:
+          complete = false
           warn "could not refresh " & display(inst.path)
-  c.st.repoRev = newRev
+  if complete and newRev.len > 0: c.st.repoRev = newRev
   save(c)
 
   if fresh:

@@ -1,0 +1,10 @@
+#!/bin/sh
+set -eu
+
+cd "$(dirname "$0")/.."
+mkdir -p bin
+for test in tnyx tlinks trefresh; do
+  nimony c "$@" -r "tests/$test.nim"
+done
+nimony c "$@" -o:bin/tgitrun tests/tgitrun.nim
+python3 tests/gitrun.py bin/tgitrun

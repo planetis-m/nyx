@@ -8,14 +8,8 @@ import std/[strutils, os, osproc, streams, envvars]
 
 const DefaultRepo* = "https://github.com/planetis-m/skills"
 
-type
-  GitResult* = enum
-    Done, NoGit, NoAccess, Offline, Failed
-
-  Job* = object
-    ## A running git command.
-    p: Process
-    started: bool
+type GitResult* = enum
+  Done, NoGit, NoAccess, Offline, Failed
 
 proc repoUrl*(): string =
   ## `NYX_REPO` overrides the default repository.
@@ -32,32 +26,6 @@ proc quietGit() =
   except:
     discard
 
-proc start(args: openArray[string]): Job =
-  if not hasGit(): return Job(started: false)
-  quietGit()
-  try:
-    result = Job(p: startProcess("git", args = args,
-                                 options = {poUsePath, poStdErrToStdOut}),
-                 started: true)
-  except:
-    result = Job(started: false)
-
-proc startClone*(url, dest: string): Job =
-  start(["clone", "--quiet", "--", url, dest])
-
-proc startPull*(dir: string): Job =
-  ## Fast-forward only: local changes or diverged history make it fail
-  ## rather than being reset or merged away.
-  start(["-C", dir, "pull", "--quiet", "--ff-only"])
-
-proc running*(j: Job): bool =
-  result = false
-  if j.started:
-    try:
-      result = running(j.p)
-    except:
-      result = false
-
 proc classify(code: int; output: string): GitResult =
   if code == 0: return Done
   let o = output.toLowerAscii
@@ -71,22 +39,42 @@ proc classify(code: int; output: string): GitResult =
   else:
     Failed
 
-proc finish*(j: Job; output: var string): GitResult =
-  ## Wait for the job and classify how it ended.
+proc collect(p: Process; output: var string): GitResult =
+  ## Drain before waiting: a full output pipe would otherwise block Git.
   output = ""
-  if not j.started:
-    return if hasGit(): Failed else: NoGit
   var code = -1
+  var failed = false
   try:
-    output = outputStream(j.p).readAll()   # drain first: a full pipe blocks git
-    code = waitForExit(j.p)
-    close(j.p)
+    output = outputStream(p).readAll()
+    code = waitForExit(p)
   except:
-    return Failed
-  result = classify(code, output)
+    failed = true
+    try: kill(p)
+    except: discard
+    try: discard waitForExit(p)
+    except: discard
+  try: close(p)
+  except: failed = true
+  result = if failed: Failed else: classify(code, output)
 
 proc git(args: openArray[string]; output: var string): GitResult =
-  finish(start(args), output)
+  output = ""
+  if not hasGit(): return NoGit
+  quietGit()
+  var p: Process
+  try:
+    p = startProcess("git", args = args,
+                     options = {poUsePath, poStdErrToStdOut})
+  except:
+    return Failed
+  result = collect(p, output)
+
+proc clone*(url, dest: string; output: var string): GitResult =
+  git(["clone", "--quiet", "--", url, dest], output)
+
+proc pull*(dir: string; output: var string): GitResult =
+  ## Fast-forward only: never reset local changes or merge diverged history.
+  git(["-C", dir, "pull", "--quiet", "--ff-only"], output)
 
 proc head*(dir: string): string =
   ## Current commit of the clone, or "" if it is not readable.
