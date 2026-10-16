@@ -34,14 +34,14 @@ Skills land in `<project>/<skillDir>/<skill>` for each selected target. Only det
 
 | Skill directory | Targets |
 | --- | --- |
-| `.agents/skills` | Codex, Agents, Cursor, OpenCode, Gemini CLI, GitHub Copilot, Amp, Cline |
+| `.agents/skills` | Codex, Agents, Cursor, OpenCode, Antigravity, GitHub Copilot, Amp, Goose |
 | `.claude/skills` | Claude Code |
+| `.cline/skills` | Cline |
 | `.crush/skills` | Crush |
+| `.devin/skills` | Windsurf |
 | `.pi/skills` | Pi |
-| `.windsurf/skills` | Windsurf |
 | `.roo/skills` | Roo Code |
 | `.continue/skills` | Continue |
-| `.goose/skills` | Goose |
 
 Detection honors `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, and `XDG_CONFIG_HOME` for the tools that use them.
 

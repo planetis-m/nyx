@@ -68,12 +68,12 @@ proc testTargets(tmp: Path) {.raises.} =
       check(not detect(t, root, home), "no markers for " & t.id)
     check(byId("unknown") == -1, "unknown target")
 
-    let shared = @["codex", "agents", "cursor", "opencode", "gemini", "copilot", "amp", "cline"]
+    let shared = @["codex", "agents", "cursor", "opencode", "agy", "copilot", "amp", "goose"]
     check(skillDirs(shared) == @[path(".agents/skills")], "shared targets install once")
     check(skillDirs(@["cursor", "claude", "unknown", "opencode", "windsurf", "roo",
                      "continue", "goose"]) ==
-          @[path(".agents/skills"), path(".claude/skills"), path(".windsurf/skills"),
-            path(".roo/skills"), path(".continue/skills"), path(".goose/skills")],
+          @[path(".agents/skills"), path(".claude/skills"), path(".devin/skills"),
+            path(".roo/skills"), path(".continue/skills")],
               "distinct target paths")
 
     createDir(root / path(".agents"))
@@ -86,10 +86,12 @@ proc testTargets(tmp: Path) {.raises.} =
     check(not dirExists($(root / path(".agents/skills"))) and
       not dirExists($(root / path(".cursor/skills"))),
           "detection creates no skill directories")
+    createDir(root / path(".cline"))
+    check(detect(all[byId("cline")], root, home), "Cline project marker")
     mkfile(root / path("opencode.jsonc"), "{}")
     check(detect(all[byId("opencode")], root, home), "OpenCode config marker")
     mkfile(root / path("GEMINI.md"), "instructions")
-    check(detect(all[byId("gemini")], root, home), "Gemini instructions marker")
+    check(detect(all[byId("agy")], root, home), "Antigravity instructions marker")
     mkfile(root / path(".github/copilot-instructions.md"), "instructions")
     check(detect(all[byId("copilot")], root, home), "Copilot instructions marker")
     createDir(home / path(".roo"))
