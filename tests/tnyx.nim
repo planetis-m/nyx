@@ -7,7 +7,7 @@
 ## root case.
 
 import std/[syncio, strutils, os, dirs, files, osproc, streams, envvars, tempfiles]
-import ../src/[state, catalog, repo, install]
+import ../src/[state, catalog, repo, install, targets]
 import ../src/ui as ui
 import paths, explain
 
@@ -48,6 +48,80 @@ proc makeStore(store: string) {.raises.} =
   mkfile(store / ".hidden" / "SKILL.md", skillMd("hidden"))
   mkfile(store / "empty" / "README.md", "no SKILL.md")
   mkfile(store / "README.md", "top level file")
+
+proc testTargets(tmp: string) {.raises.} =
+  let root = tmp / "target-project"
+  let home = tmp / "target-home"
+  let config = tmp / "target-config"
+  let bin = tmp / "target-bin"
+  for dir in [root, home, config, bin]: createDir(path(dir))
+  var saved: seq[(string, bool, string)] = @[]
+  for key in ["PATH", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "XDG_CONFIG_HOME"]:
+    saved.add (key, existsEnv(key), getEnv(key))
+  try:
+    for (key, had, value) in saved: delEnv(key)
+    putEnv("PATH", bin)
+    let all = allTargets()
+    for t in all:
+      check(not detect(t, root, home), "no markers for " & t.id)
+    check(byId("unknown") == -1, "unknown target")
+
+    let shared = @["codex", "agents", "cursor", "opencode", "gemini", "copilot", "amp", "cline"]
+    check(skillDirs(shared) == @[".agents/skills"], "shared targets install once")
+    check(skillDirs(@["cursor", "claude", "unknown", "opencode", "windsurf", "roo",
+                     "continue", "goose"]) ==
+          @[".agents/skills", ".claude/skills", ".windsurf/skills", ".roo/skills",
+            ".continue/skills", ".goose/skills"], "distinct target paths")
+
+    createDir(path(root / ".agents"))
+    check(detect(all[byId("agents")], root, home), "shared project marker")
+    for id in shared:
+      if id != "agents":
+        check(not detect(all[byId(id)], root, home), "shared directory does not identify " & id)
+    createDir(path(root / ".cursor"))
+    check(detect(all[byId("cursor")], root, home), "Cursor project marker")
+    check(not dirExists(root / ".agents/skills") and not dirExists(root / ".cursor/skills"),
+          "detection creates no skill directories")
+    mkfile(root / "opencode.jsonc", "{}")
+    check(detect(all[byId("opencode")], root, home), "OpenCode config marker")
+    mkfile(root / "GEMINI.md", "instructions")
+    check(detect(all[byId("gemini")], root, home), "Gemini instructions marker")
+    mkfile(root / ".github/copilot-instructions.md", "instructions")
+    check(detect(all[byId("copilot")], root, home), "Copilot instructions marker")
+    createDir(path(home / ".roo"))
+    check(detect(all[byId("roo")], root, home), "Roo home marker")
+
+    for (id, key, marker) in [("claude", "CLAUDE_CONFIG_DIR", ".claude"),
+                              ("codex", "CODEX_HOME", ".codex")]:
+      let t = all[byId(id)]
+      createDir(path(home / marker))
+      putEnv(key, config / id)
+      check(not detect(t, root, home), "override replaces default home for " & id)
+      createDir(path(config / id))
+      check(detect(t, root, home), "config override detects " & id)
+      putEnv(key, " \t ")
+      check(detect(t, root, home), "blank override uses default home for " & id)
+
+    let bare = tmp / "unmarked-project"
+    createDir(path(home / ".config/crush"))
+    putEnv("XDG_CONFIG_HOME", config)
+    for id in ["amp", "crush", "goose", "opencode"]:
+      check(not detect(all[byId(id)], bare, home), "XDG root alone does not identify " & id)
+    createDir(path(config / "goose"))
+    check(detect(all[byId("goose")], bare, home), "Goose under XDG root")
+    check(not detect(all[byId("amp")], bare, home), "Goose config does not identify Amp")
+    putEnv("XDG_CONFIG_HOME", "")
+    check(detect(all[byId("crush")], bare, home), "default config root")
+
+    let exe = bin / (when defined(windows): "cn.exe" else: "cn")
+    mkfile(exe, "")
+    when not defined(windows):
+      setFilePermissions(exe, {fpUserRead, fpUserWrite, fpUserExec})
+    check(detect(all[byId("continue")], bare, home), "Continue executable on PATH")
+  finally:
+    for (key, had, value) in saved:
+      if had: putEnv(key, value)
+      else: delEnv(key)
 
 proc testState(tmp: string) {.raises.} =
   let data = tmp / "data"
@@ -546,6 +620,7 @@ proc main() =
       failures += testPaths()
       failures += testFirstLine()
     testState(tmp)
+    testTargets(tmp)
     testStale()
     testDescription()
     testNames()

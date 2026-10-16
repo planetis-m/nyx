@@ -30,7 +30,7 @@ Run `nyx` in a repository root. The project is keyed by the nearest enclosing di
 
 ## Targets
 
-Skills land in `<project>/<skillDir>/<skill>` for each selected target. Only detected targets start ticked in the wizard; `Codex` and `Agents` share a directory and install once.
+Skills land in `<project>/<skillDir>/<skill>` for each selected target. Only detected targets start ticked in the wizard. Targets sharing a skill directory install each skill once.
 
 | Target | Skill directory |
 | --- | --- |
@@ -39,6 +39,18 @@ Skills land in `<project>/<skillDir>/<skill>` for each selected target. Only det
 | Agents | `.agents/skills` |
 | Crush | `.crush/skills` |
 | Pi | `.pi/skills` |
+| Cursor | `.agents/skills` |
+| OpenCode | `.agents/skills` |
+| Gemini CLI | `.agents/skills` |
+| GitHub Copilot | `.agents/skills` |
+| Windsurf | `.windsurf/skills` |
+| Roo Code | `.roo/skills` |
+| Continue | `.continue/skills` |
+| Goose | `.goose/skills` |
+| Amp | `.agents/skills` |
+| Cline | `.agents/skills` |
+
+Detection honors `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, and `XDG_CONFIG_HOME` for the tools that use them.
 
 ## Files
 
