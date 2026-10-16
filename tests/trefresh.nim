@@ -1,14 +1,15 @@
 ## Local Git and filesystem tests for applied revisions and copy failures.
+import std/paths
 import std/[syncio, os, dirs, files, strutils, envvars, tempfiles, osproc, streams]
 import refresh
 
 proc main(): int {.raises.} =
   result = 0
   if paramCount() == 2 and paramStr(1) == "--short-copy":
-    return testShortCopy(paramStr(2))
+    return testShortCopy(path(paramStr(2)))
 
-  let tmp = $createTempDir("nyx-refresh-", "")
-  defer: removeDir(path(tmp))
+  let tmp = createTempDir("nyx-refresh-", "")
+  defer: removeDir(tmp)
   var saved: seq[(string, string)] = @[]
   for key, value in envPairs():
     if key.startsWith("GIT_") or key == "LC_ALL": saved.add (key, value)
@@ -19,14 +20,14 @@ proc main(): int {.raises.} =
     for key in keys: delEnv(key)
     for (key, value) in saved: putEnv(key, value)
   for (key, value) in saved: delEnv(key)
-  let empty = tmp / "empty-git"
-  createDir(path(empty))
-  writeFile(tmp / "gitconfig", "")
+  let empty = tmp / path("empty-git")
+  createDir(empty)
+  writeFile($(tmp / path("gitconfig")), "")
   putEnv("GIT_CONFIG_NOSYSTEM", "1")
-  putEnv("GIT_CONFIG_GLOBAL", tmp / "gitconfig")
+  putEnv("GIT_CONFIG_GLOBAL", $(tmp / path("gitconfig")))
   putEnv("GIT_CONFIG_COUNT", "4")
   for i, (key, value) in [("init.defaultBranch", "main"),
-      ("init.templateDir", empty), ("core.hooksPath", empty), ("core.autocrlf", "false")]:
+      ("init.templateDir", $empty), ("core.hooksPath", $empty), ("core.autocrlf", "false")]:
     putEnv("GIT_CONFIG_KEY_" & $i, key)
     putEnv("GIT_CONFIG_VALUE_" & $i, value)
   putEnv("GIT_ALLOW_PROTOCOL", "file")
@@ -35,12 +36,12 @@ proc main(): int {.raises.} =
 
   var failures = testRefresh(tmp)
   when defined(posix):
-    let short = tmp / "short"
-    createDir(path(short / "store/alpha"))
-    writeFile(short / "store/alpha/large.txt", repeat('x', 4096))
+    let short = tmp / path("short")
+    createDir(short / path("store/alpha"))
+    writeFile($(short / path("store/alpha/large.txt")), repeat('x', 4096))
     let p = startProcess("/bin/sh", args = @["-c",
       "trap '' XFSZ; ulimit -f 1; exec \"$1\" --short-copy \"$2\"",
-      "short-copy", getAppFilename(), short], options = {poStdErrToStdOut})
+      "short-copy", getAppFilename(), $short], options = {poStdErrToStdOut})
     defer: close(p)
     close(p.inputStream)
     # Assertion output fits in a pipe; bound teardown if copying ever hangs.

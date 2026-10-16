@@ -4,7 +4,7 @@
 ##
 ## This is the only module that knows skills come from git.
 
-import std/[strutils, os, osproc, streams, envvars]
+import std/[paths, strutils, os, osproc, streams, envvars]
 
 const DefaultRepo* = "https://github.com/planetis-m/skills"
 
@@ -69,25 +69,25 @@ proc git(args: openArray[string]; output: var string): GitResult =
     return Failed
   result = collect(p, output)
 
-proc clone*(url, dest: string; output: var string): GitResult =
-  git(["clone", "--quiet", "--", url, dest], output)
+proc clone*(url: string; dest: Path; output: var string): GitResult =
+  git(["clone", "--quiet", "--", url, $dest], output)
 
-proc pull*(dir: string; output: var string): GitResult =
+proc pull*(dir: Path; output: var string): GitResult =
   ## Fast-forward only: never reset local changes or merge diverged history.
-  git(["-C", dir, "pull", "--quiet", "--ff-only"], output)
+  git(["-C", $dir, "pull", "--quiet", "--ff-only"], output)
 
-proc head*(dir: string): string =
+proc head*(dir: Path): string =
   ## Current commit of the clone, or "" if it is not readable.
   var o = ""
-  result = if git(["-C", dir, "rev-parse", "HEAD"], o) == Done: o.strip() else: ""
+  result = if git(["-C", $dir, "rev-parse", "HEAD"], o) == Done: o.strip() else: ""
 
-proc changedSkills*(dir, fromRev, toRev: string): seq[string] =
+proc changedSkills*(dir: Path; fromRev, toRev: string): seq[string] =
   ## Top-level directories touched between two commits.
   result = @[]
   if fromRev.len == 0 or toRev.len == 0 or fromRev == toRev: return
   var o = ""
   # NUL preserves literal paths; disabling renames reports both sides of a move.
-  if git(["-C", dir, "diff", "--name-only", "--no-renames", "-z", fromRev, toRev], o) != Done:
+  if git(["-C", $dir, "diff", "--name-only", "--no-renames", "-z", fromRev, toRev], o) != Done:
     return
   for line in o.split('\0'):
     let slash = line.find('/')

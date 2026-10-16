@@ -9,20 +9,20 @@
 ## * a copy is removed file by file from its recorded list, and directories
 ##   only go away once empty, so files a user added survive.
 
-import std/[os, dirs, files]
+import std/[paths, symlinks, os, dirs, files]
 import state
 
 type
   Report* = object
-    placed*: seq[string]      ## destinations created
-    removed*: seq[string]     ## destinations removed
-    collisions*: seq[string]  ## existing, not NYX's: left alone
-    kept*: seq[string]        ## NYX's, but changed by the user: left alone
-    failed*: seq[string]
+    placed*: seq[Path]  ## destinations created
+    removed*: seq[Path]  ## destinations removed
+    collisions*: seq[Path]  ## existing, not NYX's: left alone
+    kept*: seq[Path]  ## NYX's, but changed by the user: left alone
+    failed*: seq[Path]
 
-proc taken*(p: string): bool =
+proc taken*(p: Path): bool =
   ## Anything at `p`, including a dangling symlink.
-  symlinkExists(p) or fileExists(p) or dirExists(p)
+  symlinkExists(p) or fileExists($p) or dirExists($p)
 
 proc intact*(inst: Install): bool =
   ## Does `inst` still have NYX's link target, or a real directory for a copy?
@@ -35,74 +35,73 @@ proc intact*(inst: Install): bool =
       except:
         result = false
   of Copy:
-    result = dirExists(inst.path) and not symlinkExists(inst.path)
+    result = dirExists($inst.path) and not symlinkExists(inst.path)
 
 # --- filesystem helpers -----------------------------------------------------
 
-proc ensureDir(dir: string; p: var Project) {.raises.} =
+proc ensureDir(dir: Path; p: var Project) {.raises.} =
   ## Create `dir` and its missing parents, recording each one NYX made.
-  if dirExists(dir): return
+  if dirExists($dir): return
   let up = parentDir(dir)
-  if up.len > 0 and up != dir: ensureDir(up, p)
-  createDir(path(dir))
+  if up != path("") and up != dir: ensureDir(up, p)
+  createDir(dir)
   p.dirs.add dir
 
-proc linked(dir, file: string): bool =
+proc linked(dir, file: Path): bool =
   ## Check only within the owned copy; configured directories above it may
   ## legitimately be links. A replaced parent must never redirect our work.
   var rel = file
-  while rel.len > 0:
+  while rel != path(""):
     if symlinkExists(dir / rel): return true
     rel = parentDir(rel)
   result = false
 
-proc copyTree(src, dest: string; files: var seq[string]) {.raises.} =
+proc copyTree(src, dest: Path; files: var seq[Path]) {.raises.} =
   ## Copy regular files and directories; symlinks inside a skill are skipped
   ## (neither yielded nor followed). A directory is yielded before its
   ## contents, so creating it here also keeps empty ones.
-  for p in walkDirRec(path(src), yieldFilter = {pcFile, pcDir},
+  for r in walkDirRec(src, yieldFilter = {pcFile, pcDir},
                       followFilter = {pcDir}, relative = true):
-    let r = $p
     if linked(dest, r): continue
-    if dirExists(src / r):
-      createDir(path(dest / r))
+    if dirExists($(src / r)):
+      createDir(dest / r)
     else:
       let existed = taken(dest / r)
       var copied = false
       try:
-        copyFileWithPermissions(path(src / r), path(dest / r))
+        copyFileWithPermissions(src / r, dest / r)
         copied = true
       finally:
         # A failed copy can still have created a partial destination file.
-        if (copied or not existed) and fileExists(dest / r) and r notin files:
+        if (copied or not existed) and fileExists($(dest / r)) and r notin files:
           files.add r
 
-proc removeEmptyDirs(dir: string) =
+proc removeEmptyDirs(dir: Path) =
   ## Remove `dir` and its subdirectories bottom-up, but only the empty ones.
   try:
-    for kind, p in walkDir(path(dir)):
-      if kind == pcDir: removeEmptyDirs($p)
+    for kind, p in walkDir(dir):
+      if kind == pcDir: removeEmptyDirs(p)
   except:
     discard
-  discard tryRemoveFinalDir(path(dir))
+  discard tryRemoveFinalDir(dir)
 
-proc removeOurFile(dir, file: string) =
-  if not linked(dir, file) and fileExists(dir / file):
-    discard tryRemoveFile(path(dir / file))
+proc removeOurFile(dir, file: Path) =
+  if not linked(dir, file) and fileExists($(dir / file)):
+    discard tryRemoveFile(dir / file)
 
 proc pruneDirs(p: var Project) =
   ## Drop directories NYX created that are now empty, innermost first.
-  var left: seq[string] = @[]
+  var left: seq[Path] = @[]
   for i in countdown(p.dirs.high, 0):
     let d = p.dirs[i]
-    if dirExists(d) and not symlinkExists(d) and tryRemoveFinalDir(path(d)) != Success:
+    if dirExists($d) and not symlinkExists(d) and tryRemoveFinalDir(d) != Success:
       left.add d
   p.dirs = @[]
   for i in countdown(left.high, 0): p.dirs.add left[i]
 
 # --- install / uninstall ------------------------------------------------------
 
-proc place(p: var Project; skill, src, dest: string; copy: bool) {.raises.} =
+proc place(p: var Project; skill: string; src, dest: Path; copy: bool) {.raises.} =
   ## Link `dest` to `src`, falling back to a copy where links are not
   ## available (e.g. Windows without developer mode).
   ensureDir(parentDir(dest), p)
@@ -115,7 +114,7 @@ proc place(p: var Project; skill, src, dest: string; copy: bool) {.raises.} =
     except:
       discard
   inst.mode = Copy
-  createDir(path(dest))
+  createDir(dest)
   try:
     copyTree(src, dest, inst.files)
   finally:
@@ -127,8 +126,8 @@ proc unplace*(inst: Install): bool =
   if not intact(inst): return false
   case inst.mode
   of Link:
-    if tryRemoveFile(path(inst.path)) != Success:
-      discard tryRemoveFinalDir(path(inst.path))   # directory links on Windows
+    if tryRemoveFile(inst.path) != Success:
+      discard tryRemoveFinalDir(inst.path)   # directory links on Windows
   of Copy:
     for f in inst.files: removeOurFile(inst.path, f)
     removeEmptyDirs(inst.path)
@@ -137,8 +136,8 @@ proc unplace*(inst: Install): bool =
 proc resync*(inst: var Install) {.raises.} =
   ## Bring a copy up to date with its source. Links need nothing. A skill
   ## that vanished upstream keeps its last copy.
-  if inst.mode != Copy or not intact(inst) or not dirExists(inst.source): return
-  var files: seq[string] = @[]
+  if inst.mode != Copy or not intact(inst) or not dirExists($inst.source): return
+  var files: seq[Path] = @[]
   try:
     copyTree(inst.source, inst.path, files)
   finally:
@@ -149,14 +148,14 @@ proc resync*(inst: var Install) {.raises.} =
     if f notin files: removeOurFile(inst.path, f)
   inst.files = files
 
-proc sync*(p: var Project; store: string; dirs, skills: seq[string];
+proc sync*(p: var Project; store: Path; dirs: seq[Path]; skills: seq[string];
            copy = false): Report =
   ## Make the project hold exactly `skills` in each of `dirs` (relative to
   ## `p.root`), linking from `store`. `copy` forces copies.
   result = Report()
-  var want: seq[string] = @[]
+  var want: seq[Path] = @[]
   for d in dirs:
-    for s in skills: want.add p.root / d / s
+    for s in skills: want.add p.root / d / path(s)
 
   var keep: seq[Install] = @[]
   for inst in p.installs:
@@ -171,7 +170,7 @@ proc sync*(p: var Project; store: string; dirs, skills: seq[string];
 
   for d in dirs:
     for s in skills:
-      let dest = p.root / d / s
+      let dest = p.root / d / path(s)
       var have = false
       for inst in p.installs:
         if inst.path == dest:
@@ -180,11 +179,11 @@ proc sync*(p: var Project; store: string; dirs, skills: seq[string];
       if not have:
         if taken(dest):
           result.collisions.add dest
-        elif not dirExists(store / s):
+        elif not dirExists($(store / path(s))):
           result.failed.add dest
         else:
           try:
-            place(p, s, store / s, dest, copy)
+            place(p, s, store / path(s), dest, copy)
             result.placed.add dest
           except:
             result.failed.add dest

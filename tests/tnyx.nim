@@ -6,6 +6,8 @@
 ## The temporary parent must have no .git ancestor for the no-repository
 ## root case.
 
+import std/paths
+import std/symlinks
 import std/[syncio, strutils, os, dirs, files, osproc, streams, envvars, tempfiles]
 import ../src/[state, catalog, repo, install, targets]
 import ../src/ui as ui
@@ -21,14 +23,14 @@ proc fail(msg: string) =
 template check(cond: bool; msg: string) =
   if not cond: fail(msg)
 
-proc mkfile(p, content: string) {.raises.} =
-  createDir(path(parentDir(p)))
-  writeFile(p, content)
+proc mkfile(p: Path; content: string) {.raises.} =
+  createDir(parentDir(p))
+  writeFile($p, content)
 
-proc sh(dir: string; args: openArray[string]): int {.raises.} =
+proc sh(dir: Path; args: openArray[string]): int {.raises.} =
   var all = @["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false"]
   for a in args: all.add a
-  let p = startProcess("git", workingDir = dir, args = all,
+  let p = startProcess("git", workingDir = $dir, args = all,
     options = {poUsePath, poStdErrToStdOut})
   defer: close(p)
   close(p.inputStream)
@@ -38,82 +40,84 @@ proc sh(dir: string; args: openArray[string]): int {.raises.} =
 proc skillMd(desc: string): string =
   "---\nname: x\ndescription: " & desc & "\n---\n\n# Body\n"
 
-proc makeStore(store: string) {.raises.} =
-  mkfile(store / "alpha" / "SKILL.md", skillMd("Alpha does things. More text."))
-  mkfile(store / "alpha" / "references" / "notes.md", "notes")
-  mkfile(store / "beta" / "SKILL.md", "no frontmatter here\n")
-  mkfile(store / "gamma" / "SKILL.md",
+proc makeStore(store: Path) {.raises.} =
+  mkfile(store / path("alpha") / path("SKILL.md"), skillMd("Alpha does things. More text."))
+  mkfile(store / path("alpha") / path("references") / path("notes.md"), "notes")
+  mkfile(store / path("beta") / path("SKILL.md"), "no frontmatter here\n")
+  mkfile(store / path("gamma") / path("SKILL.md"),
          "---\nname: gamma\ndescription: >\n  Folded\n  text\n---\n")
-  mkfile(store / "not a skill" / "SKILL.md", skillMd("bad name"))
-  mkfile(store / ".hidden" / "SKILL.md", skillMd("hidden"))
-  mkfile(store / "empty" / "README.md", "no SKILL.md")
-  mkfile(store / "README.md", "top level file")
+  mkfile(store / path("not a skill") / path("SKILL.md"), skillMd("bad name"))
+  mkfile(store / path(".hidden") / path("SKILL.md"), skillMd("hidden"))
+  mkfile(store / path("empty") / path("README.md"), "no SKILL.md")
+  mkfile(store / path("README.md"), "top level file")
 
-proc testTargets(tmp: string) {.raises.} =
-  let root = tmp / "target-project"
-  let home = tmp / "target-home"
-  let config = tmp / "target-config"
-  let bin = tmp / "target-bin"
-  for dir in [root, home, config, bin]: createDir(path(dir))
+proc testTargets(tmp: Path) {.raises.} =
+  let root = tmp / path("target-project")
+  let home = tmp / path("target-home")
+  let config = tmp / path("target-config")
+  let bin = tmp / path("target-bin")
+  for dir in [root, home, config, bin]: createDir(dir)
   var saved: seq[(string, bool, string)] = @[]
   for key in ["PATH", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "XDG_CONFIG_HOME"]:
     saved.add (key, existsEnv(key), getEnv(key))
   try:
     for (key, had, value) in saved: delEnv(key)
-    putEnv("PATH", bin)
+    putEnv("PATH", $bin)
     let all = allTargets()
     for t in all:
       check(not detect(t, root, home), "no markers for " & t.id)
     check(byId("unknown") == -1, "unknown target")
 
     let shared = @["codex", "agents", "cursor", "opencode", "gemini", "copilot", "amp", "cline"]
-    check(skillDirs(shared) == @[".agents/skills"], "shared targets install once")
+    check(skillDirs(shared) == @[path(".agents/skills")], "shared targets install once")
     check(skillDirs(@["cursor", "claude", "unknown", "opencode", "windsurf", "roo",
                      "continue", "goose"]) ==
-          @[".agents/skills", ".claude/skills", ".windsurf/skills", ".roo/skills",
-            ".continue/skills", ".goose/skills"], "distinct target paths")
+          @[path(".agents/skills"), path(".claude/skills"), path(".windsurf/skills"),
+            path(".roo/skills"), path(".continue/skills"), path(".goose/skills")],
+              "distinct target paths")
 
-    createDir(path(root / ".agents"))
+    createDir(root / path(".agents"))
     check(detect(all[byId("agents")], root, home), "shared project marker")
     for id in shared:
       if id != "agents":
         check(not detect(all[byId(id)], root, home), "shared directory does not identify " & id)
-    createDir(path(root / ".cursor"))
+    createDir(root / path(".cursor"))
     check(detect(all[byId("cursor")], root, home), "Cursor project marker")
-    check(not dirExists(root / ".agents/skills") and not dirExists(root / ".cursor/skills"),
+    check(not dirExists($(root / path(".agents/skills"))) and
+      not dirExists($(root / path(".cursor/skills"))),
           "detection creates no skill directories")
-    mkfile(root / "opencode.jsonc", "{}")
+    mkfile(root / path("opencode.jsonc"), "{}")
     check(detect(all[byId("opencode")], root, home), "OpenCode config marker")
-    mkfile(root / "GEMINI.md", "instructions")
+    mkfile(root / path("GEMINI.md"), "instructions")
     check(detect(all[byId("gemini")], root, home), "Gemini instructions marker")
-    mkfile(root / ".github/copilot-instructions.md", "instructions")
+    mkfile(root / path(".github/copilot-instructions.md"), "instructions")
     check(detect(all[byId("copilot")], root, home), "Copilot instructions marker")
-    createDir(path(home / ".roo"))
+    createDir(home / path(".roo"))
     check(detect(all[byId("roo")], root, home), "Roo home marker")
 
     for (id, key, marker) in [("claude", "CLAUDE_CONFIG_DIR", ".claude"),
                               ("codex", "CODEX_HOME", ".codex")]:
       let t = all[byId(id)]
-      createDir(path(home / marker))
-      putEnv(key, config / id)
+      createDir(home / path(marker))
+      putEnv(key, $(config / path(id)))
       check(not detect(t, root, home), "override replaces default home for " & id)
-      createDir(path(config / id))
+      createDir(config / path(id))
       check(detect(t, root, home), "config override detects " & id)
       putEnv(key, " \t ")
       check(detect(t, root, home), "blank override uses default home for " & id)
 
-    let bare = tmp / "unmarked-project"
-    createDir(path(home / ".config/crush"))
-    putEnv("XDG_CONFIG_HOME", config)
+    let bare = tmp / path("unmarked-project")
+    createDir(home / path(".config/crush"))
+    putEnv("XDG_CONFIG_HOME", $config)
     for id in ["amp", "crush", "goose", "opencode"]:
       check(not detect(all[byId(id)], bare, home), "XDG root alone does not identify " & id)
-    createDir(path(config / "goose"))
+    createDir(config / path("goose"))
     check(detect(all[byId("goose")], bare, home), "Goose under XDG root")
     check(not detect(all[byId("amp")], bare, home), "Goose config does not identify Amp")
     putEnv("XDG_CONFIG_HOME", "")
     check(detect(all[byId("crush")], bare, home), "default config root")
 
-    let exe = bin / (when defined(windows): "cn.exe" else: "cn")
+    let exe = bin / path(when defined(windows): "cn.exe" else: "cn")
     mkfile(exe, "")
     when not defined(windows):
       setFilePermissions(exe, {fpUserRead, fpUserWrite, fpUserExec})
@@ -123,35 +127,55 @@ proc testTargets(tmp: string) {.raises.} =
       if had: putEnv(key, value)
       else: delEnv(key)
 
-proc testState(tmp: string) {.raises.} =
-  let data = tmp / "data"
+proc testState(tmp: Path) {.raises.} =
+  let data = tmp / path("data")
   var corrupt = true
   var s = loadState(data, corrupt)
   check(not corrupt and s.projects.len == 0, "missing state is fresh, not corrupt")
   check(s.version == SchemaVersion and s.checkEvery == DefaultCheckEvery, "fresh defaults")
-  check(s.find("/p") == -1, "unknown project is new")
+  check(s.find(path("/p")) == -1, "unknown project is new")
 
   s.lastCheck = 1234
   s.repoRev = "abc"
-  s.projects.add Project(root: "/p", targets: @["claude", "pi"], skills: @["alpha"],
-    installs: @[Install(path: "/p/.claude/skills/alpha", skill: "alpha", mode: Copy,
-                        source: "/s/alpha", files: @["SKILL.md", "ref/a \"q\".md"])],
-    dirs: @["/p/.claude/skills"])
+  s.projects.add Project(root: path("/p"), targets: @["claude", "pi"], skills: @["alpha"],
+    installs: @[Install(path: path("/p/.claude/skills/alpha"), skill: "alpha", mode: Copy,
+                        source: path("/s/alpha"), files: @[path("SKILL.md"),
+                          path("ref/a \"q\".md")])],
+    dirs: @[path("/p/.claude/skills")])
   saveState(data, s)
-  check(not fileExists(statePath(data) & ".tmp"), "temporary file renamed away")
+  check(not fileExists($(data / path("state.json.tmp"))), "temporary file renamed away")
   var back = loadState(data, corrupt)
   check(not corrupt, "round trip parses")
   check(back.lastCheck == 1234 and back.repoRev == "abc", "round trip scalars")
-  check(back.find("/p") == 0, "existing project found")
+  check(back.find(path("/p")) == 0, "existing project found")
+  check(back.find(path("/p/.")) == 0, "project keys use normalized Path equality")
+  when FileSystemCaseSensitive:
+    check(back.find(path("/P")) == -1, "project keys preserve case on this platform")
+  else:
+    check(back.find(path("/P")) == 0, "project keys ignore case on this platform")
   let p = back.projects[0]
   check(p.targets == @["claude", "pi"] and p.skills == @["alpha"], "round trip lists")
   check(p.installs.len == 1 and p.installs[0].mode == Copy and
-        p.installs[0].files[1] == "ref/a \"q\".md", "round trip installs")
-  check(p.dirs == @["/p/.claude/skills"], "round trip dirs")
+        p.installs[0].files[1] == path("ref/a \"q\".md"), "round trip installs")
+  check(p.dirs == @[path("/p/.claude/skills")], "round trip dirs")
+
+  # State written before the Path migration must still load as strings.
+  let legacy = """
+    {"version":1,"lastCheck":1234,"checkEvery":2592000,"repoRev":"abc","projects":[
+      {"root":"/p","targets":["claude"],"skills":["alpha"],"installs":[
+        {"path":"/p/.claude/skills/alpha","skill":"alpha","mode":"Copy",
+         "source":"/s/alpha","files":["SKILL.md"]}],"dirs":["/p/.claude/skills"]}]}
+  """
+  var ok = false
+  let old = parseState(legacy, ok)
+  check(ok and old.find(path("/p")) == 0 and
+        old.projects[0].installs[0].source == path("/s/alpha") and
+        old.projects[0].installs[0].files == @[path("SKILL.md")], "legacy state loads")
+  check(readFile($statePath(data)).find("\"data\"") < 0, "paths serialize as JSON strings")
 
   # A directory at the temporary file path makes opening it fail.
-  let saved = readFile(statePath(data))
-  createDir(path(statePath(data) & ".tmp"))
+  let saved = readFile($(statePath(data)))
+  createDir(data / path("state.json.tmp"))
   s.repoRev = "must not replace abc"
   var failed = false
   try:
@@ -159,23 +183,23 @@ proc testState(tmp: string) {.raises.} =
   except ErrorCode:
     failed = true
   check(failed, "temporary state write failure propagates")
-  check(readFile(statePath(data)) == saved, "failed save leaves previous state bytes intact")
+  check(readFile($(statePath(data))) == saved, "failed save leaves previous state bytes intact")
   back = loadState(data, corrupt)
   check(not corrupt and back.repoRev == "abc" and back.projects.len == 1,
         "previous state remains readable after failed save")
-  removeDir(path(statePath(data) & ".tmp"))
+  removeDir(data / path("state.json.tmp"))
 
-  writeFile(statePath(data), "{\"version\": 1, \"projects\": [tru")
+  writeFile($(statePath(data)), "{\"version\": 1, \"projects\": [tru")
   back = loadState(data, corrupt)
   check(corrupt and back.projects.len == 0, "corrupt state starts fresh")
-  check(fileExists(statePath(data) & ".bad"), "corrupt state kept aside")
-  check(not fileExists(statePath(data)), "corrupt state not left in place")
+  check(fileExists($(data / path("state.json.bad"))), "corrupt state kept aside")
+  check(not fileExists($(statePath(data))), "corrupt state not left in place")
 
-  writeFile(statePath(data), "{\"version\": 99}")
+  writeFile($(statePath(data)), "{\"version\": 99}")
   back = loadState(data, corrupt)
   check(corrupt, "unknown schema version is not trusted")
 
-  writeFile(statePath(data), "[1]")
+  writeFile($(statePath(data)), "[1]")
   back = loadState(data, corrupt)
   check(corrupt, "non-object document is not trusted")
 
@@ -188,31 +212,33 @@ proc testStale() =
   s.lastCheck = t - 24 * 3600
   check(not isStale(s, t), "1 day is current")
 
-proc testRoot(tmp: string) {.raises.} =
-  let proj = tmp / "proj"
-  createDir(path(proj / ".git"))
-  createDir(path(proj / "src" / "deep"))
-  let real = expandFilename(proj)
-  check(projectRoot(proj / "src" / "deep") == real, "root found from a subdirectory")
-  check(projectRoot(proj / "src" / ".." / "src") == real, "dot-dot normalized")
-  createSymlink(proj, tmp / "alias")
-  check(projectRoot(tmp / "alias" / "src") == real, "symlinked path resolves to one key")
-  let loose = tmp / "loose"
-  createDir(path(loose))
+proc testRoot(tmp: Path) {.raises.} =
+  let proj = tmp / path("proj")
+  createDir(proj / path(".git"))
+  createDir(proj / path("src") / path("deep"))
+  let real = path(expandFilename($proj))
+  check(projectRoot(proj / path("src") / path("deep")) == real, "root found from a subdirectory")
+  check(projectRoot(proj / path("src") / path("..") / path("src")) == real, "dot-dot normalized")
+  createSymlink(proj, tmp / path("alias"))
+  check(projectRoot(tmp / path("alias") / path("src")) == real,
+    "symlinked path resolves to one key")
+  let loose = tmp / path("loose")
+  createDir(loose)
   let looseRoot = projectRoot(loose)
-  check(looseRoot == expandFilename(loose), "no git: directory itself; got " & looseRoot &
-        ", expected " & expandFilename(loose) &
+  check(looseRoot == path(expandFilename($loose)), "no git: directory itself; got " & $looseRoot &
+        ", expected " & $path(expandFilename($loose)) &
         "; fixture requires a temporary parent without a .git ancestor (check TMPDIR)")
-  mkfile(tmp / "wt" / ".git", "gitdir: elsewhere")
-  createDir(path(tmp / "wt" / "a"))
-  check(projectRoot(tmp / "wt" / "a") == expandFilename(tmp / "wt"), ".git file (worktree)")
+  mkfile(tmp / path("wt") / path(".git"), "gitdir: elsewhere")
+  createDir(tmp / path("wt") / path("a"))
+  check(projectRoot(tmp / path("wt") / path("a")) == path(expandFilename($(tmp / path("wt")))),
+    ".git file (worktree)")
 
   # The nearest enclosing repository wins.
-  let inner = proj / "nested"
-  createDir(path(inner / "src" / "deep"))
+  let inner = proj / path("nested")
+  createDir(inner / path("src") / path("deep"))
   check(sh(proj, ["init", "-q"]) == 0 and sh(inner, ["init", "-q"]) == 0,
         "nested local repositories initialized")
-  check(projectRoot(inner / "src" / "deep") == expandFilename(inner),
+  check(projectRoot(inner / path("src") / path("deep")) == path(expandFilename($inner)),
         "nearest inner repository wins over outer repository")
 
 proc testDescription() =
@@ -237,46 +263,47 @@ proc testDescription() =
     ("---\ndescription: unterminated", "unterminated")]:
     check(readDescription(text) == desc, "description: " & text)
 
-proc testCatalog(tmp: string) {.raises.} =
-  let store = tmp / "store"
+proc testCatalog(tmp: Path) {.raises.} =
+  let store = tmp / path("store")
   makeStore(store)
-  createSymlink(store / "alpha", store / "linked")
+  createSymlink(store / path("alpha"), store / path("linked"))
   # A broken directory link must not hide valid catalog entries.
-  createSymlink(store / "missing-skill", store / "broken")
+  createSymlink(store / path("missing-skill"), store / path("broken"))
   let skills = discover(store)
   check(skills.names == @["alpha", "beta", "gamma"], "discovery: " & skills.names.join(","))
   check(skills[0].description == "Alpha does things. More text.", "description read")
   check(skills[1].description == "", "missing frontmatter falls back")
   check(skills[2].description == "Folded text", "folded description")
-  check(discover(tmp / "nope").len == 0, "missing catalog is empty")
+  check(discover(tmp / path("nope")).len == 0, "missing catalog is empty")
   for bad in ["..", "../x", "/etc", "a/b", "a\\b", ".git", "", "-x"]:
     check(not validName(bad), "rejects name " & bad)
   check(validName("nim-testing") and validName("a_b2"), "accepts plain names")
 
   # Discovery sorts entries by name.
-  let unsorted = tmp / "unsorted-store"
+  let unsorted = tmp / path("unsorted-store")
   for name in ["charlie", "alpha", "bravo"]:
-    mkfile(unsorted / name / "SKILL.md", skillMd(name))
+    mkfile(unsorted / path(name) / path("SKILL.md"), skillMd(name))
   let ordered = discover(unsorted)
   check(ordered.names == @["alpha", "bravo", "charlie"],
         "discovery sorts deliberately unsorted creation order")
   for s in ordered:
     check(s.description == s.name, "sorted description belongs to directory " & s.name)
-  mkfile(unsorted / "0-first" / "SKILL.md", "---\nname: other\n---\n")
-  mkfile(unsorted / "Z-last" / "SKILL.md", skillMd("'quoted'"))
-  mkfile(unsorted / "nested" / "child" / "SKILL.md", skillMd("not a direct child"))
+  mkfile(unsorted / path("0-first") / path("SKILL.md"), "---\nname: other\n---\n")
+  mkfile(unsorted / path("Z-last") / path("SKILL.md"), skillMd("'quoted'"))
+  mkfile(unsorted / path("nested") / path("child") / path("SKILL.md"),
+    skillMd("not a direct child"))
   let mixed = discover(unsorted)
   check(mixed.names == @["0-first", "Z-last", "alpha", "bravo", "charlie"],
         "discovery keeps directory identity, flat scope and ASCII ordering")
   check(mixed[0].description == "" and mixed[1].description == "quoted",
         "sorted missing and quoted descriptions")
-  let unreadable = unsorted / "bravo" / "SKILL.md"
-  let perms = getFilePermissions(path(unreadable))
+  let unreadable = unsorted / path("bravo") / path("SKILL.md")
+  let perms = getFilePermissions(unreadable)
   try:
     setFilePermissions(unreadable, {})
     var denied = false
     try:
-      discard readFile(unreadable)
+      discard readFile($unreadable)
     except:
       denied = true
     check(denied, "unreadable description fixture requires permission enforcement")
@@ -301,106 +328,113 @@ proc testNames() =
     check(validName("a" & $c) == (c in {'A'..'Z', 'a'..'z', '0'..'9', '_', '-'}),
           "later name byte " & $b)
 
-proc testInstall(tmp: string) {.raises.} =
-  let store = tmp / "install-store"
+proc testInstall(tmp: Path) {.raises.} =
+  let store = tmp / path("install-store")
   makeStore(store)
-  let root = tmp / "app"
-  createDir(path(root))
+  let root = tmp / path("app")
+  createDir(root)
   # Something the user put there themselves.
-  mkfile(root / ".claude" / "skills" / "alpha" / "SKILL.md", "user's own alpha")
+  mkfile(root / path(".claude") / path("skills") / path("alpha") / path("SKILL.md"),
+    "user's own alpha")
   var p = Project(root: root)
 
-  var r = sync(p, store, @[".claude/skills", ".pi/skills"], @["alpha", "beta"])
-  check(r.collisions == @[root / ".claude/skills/alpha"], "collision reported")
-  check(readFile(root / ".claude/skills/alpha/SKILL.md") == "user's own alpha",
+  var r = sync(p, store, @[path(".claude/skills"), path(".pi/skills")], @["alpha", "beta"])
+  check(r.collisions == @[root / path(".claude/skills/alpha")], "collision reported")
+  check(readFile($(root / path(".claude/skills/alpha/SKILL.md"))) == "user's own alpha",
         "unmanaged destination untouched")
   check(r.placed.len == 3 and p.installs.len == 3, "other destinations placed")
-  check(symlinkExists(root / ".pi/skills/beta"), "linked on unix")
-  check(p.dirs == @[root / ".pi", root / ".pi/skills"],
-        "created dirs recorded: " & p.dirs.join(","))
+  check(symlinkExists(root / path(".pi/skills/beta")), "linked on unix")
+  var created: seq[string] = @[]
+  for dir in p.dirs: created.add $dir
+  check(p.dirs == @[root / path(".pi"), root / path(".pi/skills")],
+        "created dirs recorded: " & created.join(","))
   check(missing(p) == 0, "all intact")
 
   # Deselect beta: its links go, the user's alpha stays.
-  r = sync(p, store, @[".claude/skills", ".pi/skills"], @["alpha"])
-  check(r.removed.len == 2 and not taken(root / ".pi/skills/beta"), "deselected removed")
-  check(fileExists(root / ".claude/skills/alpha/SKILL.md"), "unmanaged survives resync")
+  r = sync(p, store, @[path(".claude/skills"), path(".pi/skills")], @["alpha"])
+  check(r.removed.len == 2 and not taken(root / path(".pi/skills/beta")), "deselected removed")
+  check(fileExists($(root / path(".claude/skills/alpha/SKILL.md"))), "unmanaged survives resync")
 
   # A copy, modified by the user afterwards.
-  var q = Project(root: tmp / "app2")
-  createDir(path(q.root))
-  let script = store / "alpha" / "scripts" / "run.sh"
+  var q = Project(root: tmp / path("app2"))
+  createDir(q.root)
+  let script = store / path("alpha") / path("scripts") / path("run.sh")
   mkfile(script, "#!/bin/sh\necho hi\n")
   setFilePermissions(script, {fpUserRead, fpUserWrite, fpUserExec})
   # Copies skip source links, including dangling links.
-  createSymlink(script, store / "alpha" / "file-link")
-  createSymlink(store / "alpha" / "references", store / "alpha" / "dir-link")
-  let vanished = store / "alpha" / "vanished"
+  createSymlink(script, store / path("alpha") / path("file-link"))
+  createSymlink(store / path("alpha") / path("references"),
+    store / path("alpha") / path("dir-link"))
+  let vanished = store / path("alpha") / path("vanished")
   mkfile(vanished, "removed after linking")
-  createSymlink(vanished, store / "alpha" / "broken-link")
-  check(tryRemoveFile(path(vanished)) == Success, "break source file link")
-  r = sync(q, store, @[".agents/skills"], @["alpha"], copy = true)
-  let copyDir = q.root / ".agents/skills/alpha"
+  createSymlink(vanished, store / path("alpha") / path("broken-link"))
+  check(tryRemoveFile(vanished) == Success, "break source file link")
+  r = sync(q, store, @[path(".agents/skills")], @["alpha"], copy = true)
+  let copyDir = q.root / path(".agents/skills/alpha")
   check(q.installs.len == 1 and q.installs[0].mode == Copy, "copy mode recorded")
-  check(fileExists(copyDir / "references/notes.md"), "copy is recursive")
-  check(fpUserExec in getFilePermissions(path(copyDir / "scripts/run.sh")),
+  check(fileExists($(copyDir / path("references/notes.md"))), "copy is recursive")
+  check(fpUserExec in getFilePermissions(copyDir / path("scripts/run.sh")),
         "copy keeps the exec bit")
   check(r.failed.len == 0, "source links do not fail copy installation")
   for name in ["file-link", "dir-link", "broken-link"]:
-    check(not taken(copyDir / name), "copy skips source " & name)
-    check(name notin q.installs[0].files, "source link is not in copy manifest: " & name)
-  check("dir-link/notes.md" notin q.installs[0].files, "copy manifest excludes linked contents")
-  writeFile(copyDir / "mine.txt", "user file")
+    check(not taken(copyDir / path(name)), "copy skips source " & name)
+    check(path(name) notin q.installs[0].files, "source link is not in copy manifest: " & name)
+  check(path("dir-link/notes.md") notin q.installs[0].files,
+    "copy manifest excludes linked contents")
+  writeFile($(copyDir / path("mine.txt")), "user file")
 
   # Upstream change, then resync of the copy.
-  writeFile(store / "alpha" / "SKILL.md", skillMd("Alpha v2."))
-  discard tryRemoveFile(path(store / "alpha" / "references" / "notes.md"))
+  writeFile($(store / path("alpha") / path("SKILL.md")), skillMd("Alpha v2."))
+  discard tryRemoveFile(store / path("alpha") / path("references") / path("notes.md"))
   resync(q.installs[0])
-  check("Alpha v2." in readFile(copyDir / "SKILL.md"), "copy resynced")
-  check(not fileExists(copyDir / "references/notes.md"), "file dropped upstream removed")
-  check(fileExists(copyDir / "mine.txt"), "user file survives resync")
+  check("Alpha v2." in readFile($(copyDir / path("SKILL.md"))), "copy resynced")
+  check(not fileExists($(copyDir / path("references/notes.md"))), "file dropped upstream removed")
+  check(fileExists($(copyDir / path("mine.txt"))), "user file survives resync")
   for name in ["file-link", "dir-link", "broken-link"]:
-    check(not taken(copyDir / name), "refresh still skips source " & name)
+    check(not taken(copyDir / path(name)), "refresh still skips source " & name)
 
   # Remove everything NYX made in both projects.
   r = removeAll(p)
   check(r.kept.len == 0 and p.installs.len == 0, "links removed")
-  check(not dirExists(root / ".pi"), "empty created dirs pruned")
-  check(readFile(root / ".claude/skills/alpha/SKILL.md") == "user's own alpha",
+  check(not dirExists($(root / path(".pi"))), "empty created dirs pruned")
+  check(readFile($(root / path(".claude/skills/alpha/SKILL.md"))) == "user's own alpha",
         "remove leaves unmanaged files")
   r = removeAll(q)
   check(r.kept == @[copyDir], "modified copy reported as kept")
-  check(fileExists(copyDir / "mine.txt") and not fileExists(copyDir / "SKILL.md"),
+  check(fileExists($(copyDir / path("mine.txt"))) and not fileExists($(copyDir / path("SKILL.md"))),
         "only NYX's files removed from a copy")
 
   # A link the user replaced with their own directory is not NYX's any more.
-  var u = Project(root: tmp / "app3")
-  createDir(path(u.root))
-  discard sync(u, store, @[".claude/skills"], @["gamma"])
-  let g = u.root / ".claude/skills/gamma"
-  discard tryRemoveFile(path(g))
-  mkfile(g / "SKILL.md", "replaced")
+  var u = Project(root: tmp / path("app3"))
+  createDir(u.root)
+  discard sync(u, store, @[path(".claude/skills")], @["gamma"])
+  let g = u.root / path(".claude/skills/gamma")
+  discard tryRemoveFile(g)
+  mkfile(g / path("SKILL.md"), "replaced")
   check(missing(u) == 1, "replaced install counts as missing")
   r = removeAll(u)
-  check(r.kept == @[g] and readFile(g / "SKILL.md") == "replaced", "replacement left alone")
+  check(r.kept == @[g] and readFile($(g / path("SKILL.md"))) == "replaced",
+    "replacement left alone")
 
-proc testRetargetedLink(tmp: string) {.raises.} =
+proc testRetargetedLink(tmp: Path) {.raises.} =
   # A user-retargeted link no longer belongs to NYX.
-  let store = tmp / "retarget-store"
-  mkfile(store / "alpha" / "SKILL.md", skillMd("original"))
-  let other = tmp / "user-skill"
-  mkfile(other / "SKILL.md", "user's target")
-  var p = Project(root: tmp / "retarget-app")
-  discard sync(p, store, @[".claude/skills"], @["alpha"])
+  let store = tmp / path("retarget-store")
+  mkfile(store / path("alpha") / path("SKILL.md"), skillMd("original"))
+  let other = tmp / path("user-skill")
+  mkfile(other / path("SKILL.md"), "user's target")
+  var p = Project(root: tmp / path("retarget-app"))
+  discard sync(p, store, @[path(".claude/skills")], @["alpha"])
   let inst = p.installs[0]
-  check(tryRemoveFile(path(inst.path)) == Success, "remove original installed link")
+  check(tryRemoveFile(inst.path) == Success, "remove original installed link")
   createSymlink(other, inst.path)
   check(missing(p) == 1 and not intact(inst), "retargeted link counts as missing")
   check(not unplace(inst) and expandSymlink(inst.path) == other,
         "removal leaves retargeted link alone")
-  let r = sync(p, store, @[".claude/skills"], @["alpha"])
+  let r = sync(p, store, @[path(".claude/skills")], @["alpha"])
   check(r.collisions == @[inst.path] and p.installs.len == 0,
         "resync relinquishes retargeted link and reports collision")
-  check(expandSymlink(inst.path) == other and readFile(other / "SKILL.md") == "user's target",
+  check(expandSymlink(inst.path) == other and
+    readFile($(other / path("SKILL.md"))) == "user's target",
         "resync preserves user link and target")
 
 proc prompt(mode: string) =
@@ -479,18 +513,18 @@ proc testPrompts() {.raises.} =
     check(code == 1 and "aborted" in output and "answer=" notin output,
           "EOF aborts " & mode & " without returning an answer: " & output)
 
-proc testRepo(tmp: string) {.raises.} =
+proc testRepo(tmp: Path) {.raises.} =
   var o = ""
   # No access: a repository that is not there.
-  let r = repo.clone("file://" & tmp / "missing-repo", tmp / "clone0", o)
+  let r = repo.clone("file://" & $(tmp / path("missing-repo")), tmp / path("clone0"), o)
   check(r == NoAccess, "missing repository is no access, got " & $r)
-  check(not dirExists(tmp / "clone0"), "failed clone leaves nothing")
+  check(not dirExists($(tmp / path("clone0"))), "failed clone leaves nothing")
 
   # No git at all.
   let hadPath = existsEnv("PATH")
   let oldPath = getEnv("PATH")
   try:
-    putEnv("PATH", tmp / "empty-bin")
+    putEnv("PATH", $(tmp / path("empty-bin")))
     o = "stale output"
     check(pull(tmp, o) == NoGit, "git missing detected")
     check(o.len == 0, "missing git clears output")
@@ -499,26 +533,26 @@ proc testRepo(tmp: string) {.raises.} =
     else: delEnv("PATH")
 
   # Upstream change detection through a real (local) repository.
-  let origin = tmp / "origin"
+  let origin = tmp / path("origin")
   makeStore(origin)
   check(sh(origin, ["init", "-q"]) == 0 and sh(origin, ["add", "-A"]) == 0 and
         sh(origin, ["commit", "-q", "-m", "one"]) == 0, "origin repo")
-  let clone = tmp / "clone"
-  check(repo.clone(origin, clone, o) == Done, "clone: " & o)
+  let clone = tmp / path("clone")
+  check(repo.clone($origin, clone, o) == Done, "clone: " & o)
   let before = head(clone)
-  writeFile(origin / "beta" / "SKILL.md", skillMd("Beta v2."))
+  writeFile($(origin / path("beta") / path("SKILL.md")), skillMd("Beta v2."))
   check(sh(origin, ["commit", "-q", "-am", "two"]) == 0, "second commit")
   check(pull(clone, o) == Done, "pull: " & o)
   check(changedSkills(clone, before, head(clone)) == @["beta"], "changed skills")
   check(changedSkills(clone, head(clone), head(clone)).len == 0, "no change")
 
-proc testChangedSkills(tmp: string) {.raises.} =
-  let dir = tmp / "changes"
-  mkfile(dir / "alpha" / "SKILL.md", skillMd("Alpha."))
-  mkfile(dir / "alpha" / "guide.txt", "unique guide to move between skills\n")
-  mkfile(dir / "alpha" / "obsolete.txt", "remove me")
-  mkfile(dir / "beta" / "SKILL.md", skillMd("Beta."))
-  mkfile(dir / "README.md", "one")
+proc testChangedSkills(tmp: Path) {.raises.} =
+  let dir = tmp / path("changes")
+  mkfile(dir / path("alpha") / path("SKILL.md"), skillMd("Alpha."))
+  mkfile(dir / path("alpha") / path("guide.txt"), "unique guide to move between skills\n")
+  mkfile(dir / path("alpha") / path("obsolete.txt"), "remove me")
+  mkfile(dir / path("beta") / path("SKILL.md"), skillMd("Beta."))
+  mkfile(dir / path("README.md"), "one")
   check(sh(dir, ["init", "-q"]) == 0, "change fixture initialized")
   check(sh(dir, ["config", "core.quotePath", "true"]) == 0 and
         sh(dir, ["config", "diff.renames", "true"]) == 0,
@@ -536,11 +570,11 @@ proc testChangedSkills(tmp: string) {.raises.} =
         "distinct commits with identical trees have no changes")
 
   before = head(dir)
-  mkfile(dir / "alpha" / "SKILL.md", skillMd("Alpha v2."))
-  mkfile(dir / "alpha" / "nested" / "notes.txt", "added")
-  removeFile(path(dir / "alpha" / "obsolete.txt"))
-  mkfile(dir / "beta" / "notes.txt", "also added")
-  mkfile(dir / "README.md", "two")
+  mkfile(dir / path("alpha") / path("SKILL.md"), skillMd("Alpha v2."))
+  mkfile(dir / path("alpha") / path("nested") / path("notes.txt"), "added")
+  removeFile(dir / path("alpha") / path("obsolete.txt"))
+  mkfile(dir / path("beta") / path("notes.txt"), "also added")
+  mkfile(dir / path("README.md"), "two")
   check(sh(dir, ["add", "-A"]) == 0 and
         sh(dir, ["commit", "-q", "-m", "ordinary changes"]) == 0,
         "ordinary change commit")
@@ -549,13 +583,13 @@ proc testChangedSkills(tmp: string) {.raises.} =
         "ordinary additions, edits and deletions deduplicate skills: " & ordinary.join(","))
 
   before = head(dir)
-  mkfile(dir / "delta" / "café.txt", "unicode")
+  mkfile(dir / path("delta") / path("café.txt"), "unicode")
   var expected = @["delta"]
   when not defined(windows):
     # These characters are legal filename bytes on POSIX filesystems.
-    mkfile(dir / "beta" / "tab\tfile.txt", "tab")
-    mkfile(dir / "beta" / "line\nbreak.txt", "newline")
-    mkfile(dir / "gamma" / "double\"quote.txt", "quote")
+    mkfile(dir / path("beta") / path("tab\tfile.txt"), "tab")
+    mkfile(dir / path("beta") / path("line\nbreak.txt"), "newline")
+    mkfile(dir / path("gamma") / path("double\"quote.txt"), "quote")
     expected = @["beta", "delta", "gamma"]
   check(sh(dir, ["add", "-A"]) == 0 and
         sh(dir, ["commit", "-q", "-m", "quoted paths"]) == 0, "quoted path commit")
@@ -569,13 +603,13 @@ proc testChangedSkills(tmp: string) {.raises.} =
   check(moved == @["alpha", "beta"], "move touches both skills: " & moved.join(","))
 
   before = head(dir)
-  mkfile(dir / "README.md", "root-only change")
+  mkfile(dir / path("README.md"), "root-only change")
   check(sh(dir, ["commit", "-q", "-am", "root only"]) == 0, "root-only commit")
   check(changedSkills(dir, before, head(dir)).len == 0, "root files are not skills")
   check(changedSkills(dir, "not-a-revision", head(dir)).len == 0,
         "failed diff keeps the empty-result policy")
 
-proc testGit(tmp: string) {.raises.} =
+proc testGit(tmp: Path) {.raises.} =
   # Do not inherit repository selection, injected config, identities, signing,
   # URL rewrites, hooks or templates from the caller. Snapshot before deleting:
   # envPairs iterates storage that delEnv modifies.
@@ -584,15 +618,15 @@ proc testGit(tmp: string) {.raises.} =
     if key.startsWith("GIT_") or key == "LC_ALL": saved.add (key, value)
   try:
     for (key, value) in saved: delEnv(key)
-    let config = tmp / "gitconfig"
-    let empty = tmp / "empty-git"
-    createDir(path(empty))
-    writeFile(config, "")
+    let config = tmp / path("gitconfig")
+    let empty = tmp / path("empty-git")
+    createDir(empty)
+    writeFile($config, "")
     putEnv("GIT_CONFIG_NOSYSTEM", "1")
-    putEnv("GIT_CONFIG_GLOBAL", config)
+    putEnv("GIT_CONFIG_GLOBAL", $config)
     putEnv("GIT_CONFIG_COUNT", "4")
     for i, (key, value) in [("init.defaultBranch", "main"),
-        ("init.templateDir", empty), ("core.hooksPath", empty),
+        ("init.templateDir", $empty), ("core.hooksPath", $empty),
         ("core.autocrlf", "false")]:
       putEnv("GIT_CONFIG_KEY_" & $i, key)
       putEnv("GIT_CONFIG_VALUE_" & $i, value)
@@ -613,9 +647,9 @@ proc main() =
   if paramCount() == 2 and paramStr(1) == "--prompt":
     prompt(paramStr(2))
     return
-  var tmp = ""
+  var tmp = path("")
   try:
-    tmp = $createTempDir("nyx-test-", "")
+    tmp = createTempDir("nyx-test-", "")
     {.cast(assumeSync).}:
       failures += testPaths()
       failures += testFirstLine()
@@ -632,10 +666,10 @@ proc main() =
   except ErrorCode as e:
     fail("raised " & $e)
   try:
-    if tmp.len > 0: removeDir(path(tmp))
+    if tmp != path(""): removeDir(tmp)
   except ErrorCode as e:
     fail("cleanup raised " & $e)
-  check(tmp.len == 0 or not dirExists(tmp), "temporary fixture removed")
+  check(tmp == path("") or not dirExists($tmp), "temporary fixture removed")
   {.cast(assumeSync).}:
     if failures > 0:
       echo failures, " failed"

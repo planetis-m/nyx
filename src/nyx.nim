@@ -1,21 +1,24 @@
 ## nyx: installs coding-agent skills from the skills repository into the
 ## current project, and keeps them up to date.
 
+import std/paths
+import std/appdirs as pathdirs
 import std/[syncio, strutils, os, dirs, smartcli]
 import state, targets, catalog, repo, install, ui
 
 type
   Ctx = object
-    data: string    ## NYX data directory
-    root: string    ## canonical project root
+    data: Path  ## NYX data directory
+    root: Path  ## canonical project root
     st: State
     corrupt: bool   ## state.json was unreadable and set aside
 
 # --- helpers ----------------------------------------------------------------
 
-proc display(p: string): string =
-  ## `p` with the home directory shortened to `~`.
-  var home = getHomeDir()
+proc display(file: Path): string =
+  ## `file` with the home directory shortened to `~`.
+  let p = $file
+  var home = $pathdirs.getHomeDir()
   while home.len > 1 and home[^1] in {DirSep, AltSep} and
       not (home.len == 3 and home[1] == ':'):
     home.setLen(home.len - 1)
@@ -26,10 +29,12 @@ proc display(p: string): string =
     "~" & p.substr(n)
   else: p
 
-proc rel(c: Ctx; p: string): string =
-  let n = c.root.len
-  if n == 0 or p.len <= n or not p.startsWith(c.root): return p
-  if c.root[^1] in {DirSep, AltSep}: p.substr(n)
+proc rel(c: Ctx; file: Path): string =
+  let p = $file
+  let root = $c.root
+  let n = root.len
+  if n == 0 or p.len <= n or not p.startsWith(root): return p
+  if root[^1] in {DirSep, AltSep}: p.substr(n)
   elif p[n] in {DirSep, AltSep}: p.substr(n + 1)
   else: p
 
@@ -55,13 +60,13 @@ proc save(c: Ctx) =
   try:
     saveState(c.data, c.st)
   except:
-    fail "cannot write " & statePath(c.data)
+    fail "cannot write " & $statePath(c.data)
     quit(1)
 
 proc context(): Ctx =
   result = Ctx(data: dataDir())
   try:
-    result.root = projectRoot(".")
+    result.root = projectRoot(path("."))
   except:
     fail "cannot resolve the current directory"
     quit(1)
@@ -110,15 +115,15 @@ proc refresh(c: var Ctx; setup = false): bool =
   ## in every project up to date. Records the check time either way.
   let store = skillsDir(c.data)
   let before = discover(store).names
-  let fresh = not dirExists(store)
+  let fresh = not dirExists($store)
   let oldRev = c.st.repoRev
   var output = ""
   var r = Done
   if fresh:
     try:
-      createDir(path(c.data))
+      createDir(c.data)
     except:
-      fail "cannot create " & c.data
+      fail "cannot create " & $c.data
       quit(1)
     r = repo.clone(repoUrl(), store, output)
   else:
@@ -167,11 +172,11 @@ proc refresh(c: var Ctx; setup = false): bool =
 
 proc pickTargets(p: Project; configured: bool): seq[string] =
   let targets = allTargets()
-  let home = getHomeDir()
+  let home = pathdirs.getHomeDir()
   var items: seq[Choice] = @[]
   var sel: seq[bool] = @[]
   for t in targets:
-    items.add Choice(label: t.name, detail: t.skillDir)
+    items.add Choice(label: t.name, detail: $t.skillDir)
     sel.add(if configured: t.id in p.targets else: detect(t, p.root, home))
   choose(items, sel, minOne = true)
   result = @[]
@@ -198,7 +203,7 @@ proc wizard(c: var Ctx) =
   line()
 
   let store = skillsDir(c.data)
-  if not dirExists(store):
+  if not dirExists($store):
     line "  " & dim("nyx needs access to the skills repository")
     if not refresh(c, setup = true):
       line()
@@ -289,7 +294,7 @@ proc remove(c: var Ctx) =
     return
   var p = c.st.projects[idx]
   # One line per agent directory, as in the wizard.
-  var dirs: seq[string] = @[]
+  var dirs: seq[Path] = @[]
   for inst in p.installs:
     let d = parentDir(inst.path)
     if d notin dirs: dirs.add d

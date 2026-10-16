@@ -2,7 +2,7 @@
 ## name is the installed name; unreadable or missing frontmatter leaves the
 ## description empty rather than failing the catalog.
 
-import std/[syncio, strutils, parseutils, os, dirs, algorithm]
+import std/[paths, syncio, strutils, parseutils, os, dirs, algorithm]
 
 type
   Skill* = object
@@ -50,21 +50,21 @@ proc readDescription*(text: string): string =
           folded = true
   result = unquote(result)
 
-proc discover*(dir: string): seq[Skill] =
+proc discover*(dir: Path): seq[Skill] =
   ## Skills directly under `dir`, sorted by name. Symlinked entries are
   ## skipped so the catalog cannot point outside its own directory.
   result = @[]
   try:
-    for kind, p in walkDir(path(dir), relative = true):
+    for kind, p in walkDir(dir, relative = true):
       let name = $p
-      if kind == pcDir and validName(name) and fileExists(dir / name / "SKILL.md"):
+      if kind == pcDir and validName(name) and fileExists($(dir / p / path("SKILL.md"))):
         result.add Skill(name: name)
   except:
     discard
   sort(result, proc (a, b: Skill): int = cmp(a.name, b.name))
   for s in mitems(result):
     try:
-      s.description = readDescription(readFile(dir / s.name / "SKILL.md"))
+      s.description = readDescription(readFile($(dir / path(s.name) / path("SKILL.md"))))
     except:
       discard
 
