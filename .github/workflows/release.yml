@@ -19,8 +19,6 @@ env:
   # symlinks); move to nim-lang/nimony once they are merged there.
   NIMONY_REPO: https://github.com/planetis-m/nimony
   NIMONY_COMMIT: 0a20752c887064f0befd01961f7e99a4898b92e0
-  NATIVENIF_REPO: https://github.com/nim-lang/nativenif
-  NATIVENIF_COMMIT: d2fb4ce249734766ec4b80b5fae89528c5b561d4
 
 jobs:
   build:
@@ -44,26 +42,19 @@ jobs:
         with:
           path: nyx
 
-      - name: Clone nimony and nativenif
-        # nativenif must sit at `../nativenif` relative to nimony. hastur moves a
-        # detached or CI checkout to nimony's own `src/nativenif.commit`, but
-        # leaves a local branch alone outside CI, so the clone gets a branch and
-        # the build below runs without `CI` set.
+      - name: Clone nimony
+        # hastur clones nativenif next to it at nimony's `src/nativenif.commit`.
         run: |
-          clone() {
-            git init -q "$1"
-            git -C "$1" fetch -q --depth 1 "$2" "$3"
-            git -C "$1" checkout -q -B release FETCH_HEAD
-          }
-          clone nimony "$NIMONY_REPO" "$NIMONY_COMMIT"
-          clone nativenif "$NATIVENIF_REPO" "$NATIVENIF_COMMIT"
+          git init -q nimony
+          git -C nimony fetch -q --depth 1 "$NIMONY_REPO" "$NIMONY_COMMIT"
+          git -C nimony checkout -q FETCH_HEAD
 
       - name: Restore the nimony toolchain
         id: toolchain
         uses: actions/cache@v4
         with:
           path: nimony/bin
-          key: nimony-${{ matrix.os }}-${{ matrix.arch }}-${{ env.NIMONY_COMMIT }}-${{ env.NATIVENIF_COMMIT }}
+          key: nimony-${{ matrix.os }}-${{ matrix.arch }}-${{ env.NIMONY_COMMIT }}
 
       - name: Install MinGW (Windows)
         # Only for building the toolchain with Nim; `nimony n` itself needs no C
@@ -94,9 +85,7 @@ jobs:
       - name: Build the nimony toolchain
         if: steps.toolchain.outputs.cache-hit != 'true'
         working-directory: nimony
-        run: |
-          env -u CI nim c -r src/hastur/hastur --release build all
-          test "$(git -C ../nativenif rev-parse HEAD)" = "$NATIVENIF_COMMIT"
+        run: nim c -r src/hastur/hastur --release build all
 
       - name: Build nyx
         working-directory: nyx
