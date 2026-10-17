@@ -6,8 +6,7 @@
 ##   skills/      git clone of the skills repository; the one canonical copy
 ##                of every skill, which projects link to (or copy from)
 
-import std/appdirs
-import std/[paths, syncio, os, dirs, files, json, envvars, times, opt]
+import std/[appdirs, paths, syncio, os, dirs, files, json, envvars, times, opt]
 
 const
   SchemaVersion* = 1

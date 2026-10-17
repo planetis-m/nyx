@@ -1,6 +1,5 @@
 ## Local Git and filesystem tests for applied revisions and copy failures.
-import std/paths
-import std/[syncio, os, dirs, files, strutils, envvars, tempfiles, osproc, streams]
+import std/[paths, syncio, os, dirs, files, strutils, envvars, tempfiles, osproc, streams]
 import refresh
 
 proc main(): int {.raises.} =

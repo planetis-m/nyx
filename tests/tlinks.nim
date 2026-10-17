@@ -1,8 +1,6 @@
 ## Destination replacements must not redirect copy refresh or removal.
 
-import std/paths
-import std/symlinks
-import std/[syncio, os, dirs, files, tempfiles]
+import std/[paths, symlinks, syncio, os, dirs, files, tempfiles]
 import ../src/[state, install]
 
 var failures = 0

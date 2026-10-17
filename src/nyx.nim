@@ -1,9 +1,7 @@
 ## nyx: installs coding-agent skills from the skills repository into the
 ## current project, and keeps them up to date.
 
-import std/paths
-import std/appdirs
-import std/[syncio, strutils, os, dirs, smartcli]
+import std/[appdirs, paths, syncio, strutils, os, dirs, smartcli]
 import state, targets, catalog, repo, install, ui
 
 type
@@ -99,10 +97,9 @@ proc skillDirs(c: Ctx; ids: seq[string]): seq[Path] =
 
 proc targetNames(ids: seq[string]): string =
   var names: seq[string] = @[]
-  let all = allTargets()
   for id in ids:
     let i = byId(id)
-    if i >= 0: names.add all[i].name
+    if i >= 0: names.add Targets[i].name
   result = names.join(", ")
 
 # --- updating ---------------------------------------------------------------
@@ -190,18 +187,17 @@ proc refresh(c: var Ctx; setup = false): bool =
 # --- selection ---------------------------------------------------------------
 
 proc pickTargets(c: Ctx; p: Project; configured: bool): seq[string] =
-  let targets = allTargets()
   let home = appdirs.getHomeDir()
   var items: seq[Choice] = @[]
   var sel: seq[bool] = @[]
-  for t in targets:
+  for t in Targets:
     let detail = if c.global: display(globalSkillDir(t, home)) else: $t.skillDir
     items.add Choice(label: t.name, detail: detail)
     sel.add(if configured: t.id in p.targets else: detect(t, p.root, home))
   choose(items, sel, minOne = true)
   result = @[]
-  for i in 0..<targets.len:
-    if sel[i]: result.add targets[i].id
+  for i in 0..<Targets.len:
+    if sel[i]: result.add Targets[i].id
 
 proc pickSkills(skills: seq[Skill]; chosen: seq[string]): seq[string] =
   var items: seq[Choice] = @[]

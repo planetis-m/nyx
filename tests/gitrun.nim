@@ -1,7 +1,6 @@
 ## Exercise the synchronous Git runner with controlled local output.
-import std/paths
+import std/[paths, envvars, assertions, strutils, syncio]
 import ../src/repo
-import std/[envvars, assertions, strutils, syncio]
 
 proc testGitRun*() {.raises.} =
   var output = "stale output"

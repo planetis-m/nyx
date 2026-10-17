@@ -6,11 +6,8 @@
 ## The temporary parent must have no .git ancestor for the no-repository
 ## root case.
 
-import std/paths
-import std/symlinks
-import std/[syncio, strutils, os, dirs, files, osproc, streams, envvars, tempfiles, opt]
-import ../src/[state, catalog, repo, install, targets]
-import ../src/ui
+import std/[paths, symlinks, syncio, strutils, os, dirs, files, osproc, streams, envvars, tempfiles, opt]
+import ../src/[state, catalog, repo, install, targets, ui]
 import paths, explain
 
 var failures = 0   # single-threaded test program
@@ -63,8 +60,7 @@ proc testTargets(tmp: Path) {.raises.} =
   try:
     for (key, had, value) in saved: delEnv(key)
     putEnv("PATH", $bin)
-    let all = allTargets()
-    for t in all:
+    for t in Targets:
       check(not detect(t, root, home), "no markers for " & t.id)
     check(byId("unknown") == -1, "unknown target")
 
@@ -77,29 +73,29 @@ proc testTargets(tmp: Path) {.raises.} =
               "distinct target paths")
 
     createDir(root / path(".agents"))
-    check(detect(all[byId("agents")], root, home), "shared project marker")
+    check(detect(Targets[byId("agents")], root, home), "shared project marker")
     for id in shared:
       if id != "agents":
-        check(not detect(all[byId(id)], root, home), "shared directory does not identify " & id)
+        check(not detect(Targets[byId(id)], root, home), "shared directory does not identify " & id)
     createDir(root / path(".cursor"))
-    check(detect(all[byId("cursor")], root, home), "Cursor project marker")
+    check(detect(Targets[byId("cursor")], root, home), "Cursor project marker")
     check(not dirExists($(root / path(".agents/skills"))) and
       not dirExists($(root / path(".cursor/skills"))),
           "detection creates no skill directories")
     createDir(root / path(".cline"))
-    check(detect(all[byId("cline")], root, home), "Cline project marker")
+    check(detect(Targets[byId("cline")], root, home), "Cline project marker")
     mkfile(root / path("opencode.jsonc"), "{}")
-    check(detect(all[byId("opencode")], root, home), "OpenCode config marker")
+    check(detect(Targets[byId("opencode")], root, home), "OpenCode config marker")
     mkfile(root / path("GEMINI.md"), "instructions")
-    check(detect(all[byId("agy")], root, home), "Antigravity instructions marker")
+    check(detect(Targets[byId("agy")], root, home), "Antigravity instructions marker")
     mkfile(root / path(".github/copilot-instructions.md"), "instructions")
-    check(detect(all[byId("copilot")], root, home), "Copilot instructions marker")
+    check(detect(Targets[byId("copilot")], root, home), "Copilot instructions marker")
     createDir(home / path(".roo"))
-    check(detect(all[byId("roo")], root, home), "Roo home marker")
+    check(detect(Targets[byId("roo")], root, home), "Roo home marker")
 
     for (id, key, marker) in [("claude", "CLAUDE_CONFIG_DIR", ".claude"),
                               ("codex", "CODEX_HOME", ".codex")]:
-      let t = all[byId(id)]
+      let t = Targets[byId(id)]
       createDir(home / path(marker))
       putEnv(key, $(config / path(id)))
       check(not detect(t, root, home), "override replaces default home for " & id)
@@ -112,55 +108,55 @@ proc testTargets(tmp: Path) {.raises.} =
     createDir(home / path(".config/crush"))
     putEnv("XDG_CONFIG_HOME", $config)
     for id in ["amp", "crush", "goose", "opencode"]:
-      check(not detect(all[byId(id)], bare, home), "XDG root alone does not identify " & id)
+      check(not detect(Targets[byId(id)], bare, home), "XDG root alone does not identify " & id)
     createDir(config / path("goose"))
-    check(detect(all[byId("goose")], bare, home), "Goose under XDG root")
-    check(not detect(all[byId("amp")], bare, home), "Goose config does not identify Amp")
+    check(detect(Targets[byId("goose")], bare, home), "Goose under XDG root")
+    check(not detect(Targets[byId("amp")], bare, home), "Goose config does not identify Amp")
     putEnv("XDG_CONFIG_HOME", "")
-    check(detect(all[byId("crush")], bare, home), "default config root")
+    check(detect(Targets[byId("crush")], bare, home), "default config root")
 
     let exe = bin / path(when defined(windows): "cn.exe" else: "cn")
     mkfile(exe, "")
     when not defined(windows):
       setFilePermissions(exe, {fpUserRead, fpUserWrite, fpUserExec})
-    check(detect(all[byId("continue")], bare, home), "Continue executable on PATH")
+    check(detect(Targets[byId("continue")], bare, home), "Continue executable on PATH")
 
     # Global skill directory resolution
     putEnv("XDG_CONFIG_HOME", $config)
-    check(globalSkillDir(all[byId("crush")], home) == config / path("crush/skills"),
+    check(globalSkillDir(Targets[byId("crush")], home) == config / path("crush/skills"),
           "Crush honors XDG_CONFIG_HOME")
-    check(globalSkillDir(all[byId("opencode")], home) == config / path("opencode/skills"),
+    check(globalSkillDir(Targets[byId("opencode")], home) == config / path("opencode/skills"),
           "OpenCode honors XDG_CONFIG_HOME")
-    check(globalSkillDir(all[byId("windsurf")], home) == config / path("devin/skills"),
+    check(globalSkillDir(Targets[byId("windsurf")], home) == config / path("devin/skills"),
           "Windsurf honors XDG_CONFIG_HOME")
-    check(globalSkillDir(all[byId("claude")], home) == home / path(".claude/skills"),
+    check(globalSkillDir(Targets[byId("claude")], home) == home / path(".claude/skills"),
           "Claude stays under home despite XDG_CONFIG_HOME")
-    check(globalSkillDir(all[byId("agy")], home) == home / path(".gemini/config/skills"),
+    check(globalSkillDir(Targets[byId("agy")], home) == home / path(".gemini/config/skills"),
           "Antigravity stays under home despite XDG_CONFIG_HOME")
-    check(globalSkillDir(all[byId("amp")], home) == home / path(".config/agents/skills"),
+    check(globalSkillDir(Targets[byId("amp")], home) == home / path(".config/agents/skills"),
           "Amp's .config is literal, not XDG_CONFIG_HOME")
-    check(globalSkillDir(all[byId("codex")], home) == home / path(".agents/skills"),
+    check(globalSkillDir(Targets[byId("codex")], home) == home / path(".agents/skills"),
           "Codex stays under home")
     check(globalSkillDirs(@["codex", "agents", "goose"], home) == @[home / path(".agents/skills")],
           "shared home targets deduplicate")
 
     putEnv("XDG_CONFIG_HOME", "")
-    check(globalSkillDir(all[byId("crush")], home) == home / path(".config/crush/skills"),
+    check(globalSkillDir(Targets[byId("crush")], home) == home / path(".config/crush/skills"),
           "Crush falls back to ~/.config")
-    check(globalSkillDir(all[byId("opencode")], home) == home / path(".config/opencode/skills"),
+    check(globalSkillDir(Targets[byId("opencode")], home) == home / path(".config/opencode/skills"),
           "OpenCode falls back to ~/.config")
-    check(globalSkillDir(all[byId("windsurf")], home) == home / path(".config/devin/skills"),
+    check(globalSkillDir(Targets[byId("windsurf")], home) == home / path(".config/devin/skills"),
           "Windsurf falls back to ~/.config")
     putEnv("XDG_CONFIG_HOME", " \t ")
-    check(globalSkillDir(all[byId("crush")], home) == home / path(".config/crush/skills"),
+    check(globalSkillDir(Targets[byId("crush")], home) == home / path(".config/crush/skills"),
           "blank XDG_CONFIG_HOME falls back to ~/.config")
     putEnv("CLAUDE_CONFIG_DIR", $(config / path("claude")))
-    check(globalSkillDir(all[byId("claude")], home) == config / path("claude/skills"),
+    check(globalSkillDir(Targets[byId("claude")], home) == config / path("claude/skills"),
           "Claude honors CLAUDE_CONFIG_DIR")
 
     # Global detection does not consider project markers
-    check(not detect(all[byId("agents")], path(""), home), "empty root ignores project markers")
-    check(detect(all[byId("crush")], path(""), home), "empty root detects home markers")
+    check(not detect(Targets[byId("agents")], path(""), home), "empty root ignores project markers")
+    check(detect(Targets[byId("crush")], path(""), home), "empty root detects home markers")
   finally:
     for (key, had, value) in saved:
       if had: putEnv(key, value)
@@ -516,9 +512,8 @@ proc testGlobalInstall(tmp: Path) {.raises.} =
       if had: putEnv(key, value)
       else: delEnv(key)
 
-  let all = allTargets()
-  let crushDir = globalSkillDir(all[byId("crush")], home)
-  let claudeDir = globalSkillDir(all[byId("claude")], home)
+  let crushDir = globalSkillDir(Targets[byId("crush")], home)
+  let claudeDir = globalSkillDir(Targets[byId("claude")], home)
   check(crushDir == cfg / path("crush/skills"), "global crush dir under XDG")
   check(claudeDir == home / path(".claude/skills"), "global claude dir under home")
 
