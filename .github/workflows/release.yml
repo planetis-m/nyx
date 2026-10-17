@@ -85,7 +85,9 @@ jobs:
       - name: Build the nimony toolchain
         if: steps.toolchain.outputs.cache-hit != 'true'
         working-directory: nimony
-        run: nim c -r src/hastur/hastur --release build all
+        run: |
+          nim c -r src/hastur/hastur --release build arkham
+          bin/hastur --release build all
 
       - name: Build nyx
         working-directory: nyx
