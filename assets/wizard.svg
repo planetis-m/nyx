@@ -1,0 +1,108 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="792" height="784" viewBox="0 0 792.4 784.0" font-family="'JetBrains Mono', 'Fira Code', 'Liberation Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">
+<title>nyx wizard: pick targets and skills</title>
+<rect width="792.4" height="784.0" rx="8" fill="#1c1c1f"/>
+<text x="30.80" y="61.90" fill="#ffe234" font-weight="bold" xml:space="preserve">###   ##    ##    ##    ###  ###</text>
+<text x="30.80" y="79.90" fill="#ffa117" font-weight="bold" xml:space="preserve">##### ##    ##    ##     #####</text>
+<text x="30.80" y="97.90" fill="#f5670a" font-weight="bold" xml:space="preserve">## #####     ######      #####</text>
+<text x="30.80" y="115.90" fill="#e2340e" font-weight="bold" xml:space="preserve">##   ###       ##       ###  ###</text>
+<text x="30.80" y="151.90" fill="#787672" xml:space="preserve">project  </text>
+<text x="106.40" y="151.90" fill="#eeeee8" xml:space="preserve">~/Projects/nyx</text>
+<text x="30.80" y="187.90" fill="#e6b828" font-weight="bold" xml:space="preserve">TARGETS</text>
+<text x="30.80" y="205.90" fill="#787672" xml:space="preserve"> 1 </text>
+<text x="56.00" y="205.90" fill="#e6b828" xml:space="preserve">[x] </text>
+<text x="89.60" y="205.90" fill="#eeeee8" xml:space="preserve">Claude Code     </text>
+<text x="224.00" y="205.90" fill="#787672" xml:space="preserve">.claude/skills</text>
+<text x="30.80" y="223.90" fill="#787672" xml:space="preserve"> 2 </text>
+<text x="56.00" y="223.90" fill="#e6b828" xml:space="preserve">[x] </text>
+<text x="89.60" y="223.90" fill="#eeeee8" xml:space="preserve">Codex           </text>
+<text x="224.00" y="223.90" fill="#787672" xml:space="preserve">.agents/skills</text>
+<text x="30.80" y="241.90" fill="#787672" xml:space="preserve"> 3 [ ] </text>
+<text x="89.60" y="241.90" fill="#c4c0ba" xml:space="preserve">Agents          </text>
+<text x="224.00" y="241.90" fill="#787672" xml:space="preserve">.agents/skills</text>
+<text x="30.80" y="259.90" fill="#787672" xml:space="preserve"> 4 </text>
+<text x="56.00" y="259.90" fill="#e6b828" xml:space="preserve">[x] </text>
+<text x="89.60" y="259.90" fill="#eeeee8" xml:space="preserve">Crush           </text>
+<text x="224.00" y="259.90" fill="#787672" xml:space="preserve">.crush/skills</text>
+<text x="30.80" y="277.90" fill="#787672" xml:space="preserve"> 5 </text>
+<text x="56.00" y="277.90" fill="#e6b828" xml:space="preserve">[x] </text>
+<text x="89.60" y="277.90" fill="#eeeee8" xml:space="preserve">Pi              </text>
+<text x="224.00" y="277.90" fill="#787672" xml:space="preserve">.pi/skills</text>
+<text x="30.80" y="295.90" fill="#787672" xml:space="preserve"> 6 [ ] </text>
+<text x="89.60" y="295.90" fill="#c4c0ba" xml:space="preserve">Cursor          </text>
+<text x="224.00" y="295.90" fill="#787672" xml:space="preserve">.agents/skills</text>
+<text x="30.80" y="313.90" fill="#787672" xml:space="preserve"> 7 [ ] </text>
+<text x="89.60" y="313.90" fill="#c4c0ba" xml:space="preserve">OpenCode        </text>
+<text x="224.00" y="313.90" fill="#787672" xml:space="preserve">.agents/skills</text>
+<text x="30.80" y="331.90" fill="#787672" xml:space="preserve"> 8 </text>
+<text x="56.00" y="331.90" fill="#e6b828" xml:space="preserve">[x] </text>
+<text x="89.60" y="331.90" fill="#eeeee8" xml:space="preserve">Antigravity     </text>
+<text x="224.00" y="331.90" fill="#787672" xml:space="preserve">.agents/skills</text>
+<text x="30.80" y="349.90" fill="#787672" xml:space="preserve"> 9 </text>
+<text x="56.00" y="349.90" fill="#e6b828" xml:space="preserve">[x] </text>
+<text x="89.60" y="349.90" fill="#eeeee8" xml:space="preserve">GitHub Copilot  </text>
+<text x="224.00" y="349.90" fill="#787672" xml:space="preserve">.agents/skills</text>
+<text x="30.80" y="367.90" fill="#787672" xml:space="preserve">10 [ ] </text>
+<text x="89.60" y="367.90" fill="#c4c0ba" xml:space="preserve">Windsurf        </text>
+<text x="224.00" y="367.90" fill="#787672" xml:space="preserve">.devin/skills</text>
+<text x="30.80" y="385.90" fill="#787672" xml:space="preserve">11 [ ] </text>
+<text x="89.60" y="385.90" fill="#c4c0ba" xml:space="preserve">Roo Code        </text>
+<text x="224.00" y="385.90" fill="#787672" xml:space="preserve">.roo/skills</text>
+<text x="30.80" y="403.90" fill="#787672" xml:space="preserve">12 [ ] </text>
+<text x="89.60" y="403.90" fill="#c4c0ba" xml:space="preserve">Continue        </text>
+<text x="224.00" y="403.90" fill="#787672" xml:space="preserve">.continue/skills</text>
+<text x="30.80" y="421.90" fill="#787672" xml:space="preserve">13 </text>
+<text x="56.00" y="421.90" fill="#e6b828" xml:space="preserve">[x] </text>
+<text x="89.60" y="421.90" fill="#eeeee8" xml:space="preserve">Goose           </text>
+<text x="224.00" y="421.90" fill="#787672" xml:space="preserve">.agents/skills</text>
+<text x="30.80" y="439.90" fill="#787672" xml:space="preserve">14 [ ] </text>
+<text x="89.60" y="439.90" fill="#c4c0ba" xml:space="preserve">Amp             </text>
+<text x="224.00" y="439.90" fill="#787672" xml:space="preserve">.agents/skills</text>
+<text x="30.80" y="457.90" fill="#787672" xml:space="preserve">15 [ ] </text>
+<text x="89.60" y="457.90" fill="#c4c0ba" xml:space="preserve">Cline           </text>
+<text x="224.00" y="457.90" fill="#787672" xml:space="preserve">.cline/skills</text>
+<text x="30.80" y="493.90" fill="#e6b828" font-weight="bold" xml:space="preserve">SKILLS</text>
+<text x="30.80" y="511.90" fill="#787672" xml:space="preserve"> 1 [ ] </text>
+<text x="89.60" y="511.90" fill="#c4c0ba" xml:space="preserve">atlas-package-cloner   </text>
+<text x="282.80" y="511.90" fill="#787672" xml:space="preserve">Use Atlas to initialize Nim projects, install or update</text>
+<text x="30.80" y="529.90" fill="#787672" xml:space="preserve"> 2 [ ] </text>
+<text x="89.60" y="529.90" fill="#c4c0ba" xml:space="preserve">nim-api-design         </text>
+<text x="282.80" y="529.90" fill="#787672" xml:space="preserve">Design clear public Nim APIs for libraries and modules,</text>
+<text x="30.80" y="547.90" fill="#787672" xml:space="preserve"> 3 [ ] </text>
+<text x="89.60" y="547.90" fill="#c4c0ba" xml:space="preserve">nim-c-bindings         </text>
+<text x="282.80" y="547.90" fill="#787672" xml:space="preserve">Bind C libraries to Nim and make them build reliably across</text>
+<text x="30.80" y="565.90" fill="#787672" xml:space="preserve"> 4 [ ] </text>
+<text x="89.60" y="565.90" fill="#c4c0ba" xml:space="preserve">nim-c-wrappers         </text>
+<text x="282.80" y="565.90" fill="#787672" xml:space="preserve">Turn low-level C FFI bindings into an idiomatic Nim API,</text>
+<text x="30.80" y="583.90" fill="#787672" xml:space="preserve"> 5 [ ] </text>
+<text x="89.60" y="583.90" fill="#c4c0ba" xml:space="preserve">nim-code-organization  </text>
+<text x="282.80" y="583.90" fill="#787672" xml:space="preserve">Organize Nim modules and multi-step workflows with explicit</text>
+<text x="30.80" y="601.90" fill="#787672" xml:space="preserve"> 6 [ ] </text>
+<text x="89.60" y="601.90" fill="#c4c0ba" xml:space="preserve">nim-debugging          </text>
+<text x="282.80" y="601.90" fill="#787672" xml:space="preserve">Debug Nim compile failures, crashes, wrong results, macro</text>
+<text x="30.80" y="619.90" fill="#787672" xml:space="preserve"> 7 [ ] </text>
+<text x="89.60" y="619.90" fill="#c4c0ba" xml:space="preserve">nim-defect-analysis    </text>
+<text x="282.80" y="619.90" fill="#787672" xml:space="preserve">Find reliability and security defects in Nim code</text>
+<text x="30.80" y="637.90" fill="#787672" xml:space="preserve"> 8 [ ] </text>
+<text x="89.60" y="637.90" fill="#c4c0ba" xml:space="preserve">nim-doc-comments       </text>
+<text x="282.80" y="637.90" fill="#787672" xml:space="preserve">Document exported Nim modules and APIs with doc comments</text>
+<text x="30.80" y="655.90" fill="#787672" xml:space="preserve"> 9 [ ] </text>
+<text x="89.60" y="655.90" fill="#c4c0ba" xml:space="preserve">nim-error-handling     </text>
+<text x="282.80" y="655.90" fill="#787672" xml:space="preserve">Design clear Nim error-handling flows; when to raise</text>
+<text x="30.80" y="673.90" fill="#787672" xml:space="preserve">10 [ ] </text>
+<text x="89.60" y="673.90" fill="#c4c0ba" xml:space="preserve">nim-fuzzing            </text>
+<text x="282.80" y="673.90" fill="#787672" xml:space="preserve">Set up and run libFuzzer-based fuzz targets for Nim code,</text>
+<text x="30.80" y="691.90" fill="#787672" xml:space="preserve">11 [ ] </text>
+<text x="89.60" y="691.90" fill="#c4c0ba" xml:space="preserve">nim-ownership-hooks    </text>
+<text x="282.80" y="691.90" fill="#787672" xml:space="preserve">Implement and review Nim ARC/ORC ownership hooks for types</text>
+<text x="30.80" y="709.90" fill="#787672" xml:space="preserve">12 [ ] </text>
+<text x="89.60" y="709.90" fill="#c4c0ba" xml:space="preserve">nim-style-guide        </text>
+<text x="282.80" y="709.90" fill="#787672" xml:space="preserve">Write clear, consistent Nim code in a simple stdlib-aligned</text>
+<text x="30.80" y="727.90" fill="#787672" xml:space="preserve">13 [ ] </text>
+<text x="89.60" y="727.90" fill="#c4c0ba" xml:space="preserve">nim-testing            </text>
+<text x="282.80" y="727.90" fill="#787672" xml:space="preserve">Write and run deterministic Nim tests, including isolated</text>
+<text x="30.80" y="745.90" fill="#787672" xml:space="preserve">14 [ ] </text>
+<text x="89.60" y="745.90" fill="#c4c0ba" xml:space="preserve">nimonyplugins          </text>
+<text x="282.80" y="745.90" fill="#787672" xml:space="preserve">Build and debug Nimony compile-time plugins for code</text>
+<text x="30.80" y="763.90" fill="#e6b828" xml:space="preserve">&gt; </text>
+<text x="47.60" y="763.90" fill="#787672" xml:space="preserve">toggle 1-14, a/n, enter to accept</text>
+</svg>

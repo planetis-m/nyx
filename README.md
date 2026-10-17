@@ -4,6 +4,8 @@ Installs coding-agent skills from a skills repository into the current project, 
 
 Skills are cloned once into nyx's data directory. Each project gets symlinks (or copies, where symlinks are unavailable) into its agent skill directories, so one clone serves every project and updates are a fast-forward away.
 
+![nyx wizard: pick the agent targets and skills to install](assets/wizard.svg)
+
 ## Install
 
 Linux and macOS (installs to `~/.local/bin`):
