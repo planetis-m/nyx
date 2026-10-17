@@ -4,7 +4,7 @@
 ##
 ## This is the only module that knows skills come from git.
 
-import std/[paths, strutils, os, osproc, streams, envvars]
+import std/[paths, strutils, os, osproc, streams, envvars, strtabs]
 
 const DefaultRepo* = "https://github.com/planetis-m/skills"
 
@@ -17,14 +17,16 @@ proc repoUrl*(): string =
 
 proc hasGit*(): bool = findExe("git").len > 0
 
-proc quietGit() =
-  ## Fail fast instead of waiting on a password prompt nobody sees.
-  try:
-    putEnv("GIT_TERMINAL_PROMPT", "0")
-    if getEnv("GIT_SSH_COMMAND").isEmptyOrWhitespace:
-      putEnv("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
-  except:
-    discard
+proc quietEnv(): StringTableRef =
+  ## The environment for Git: fail fast instead of waiting on a password
+  ## prompt nobody sees. Passed to the child rather than set on this process,
+  ## which has no writable environment when built libc-free.
+  result = newStringTable(when defined(windows): modeCaseInsensitive else: modeCaseSensitive)
+  for key, value in envPairs():
+    result[key] = value
+  result["GIT_TERMINAL_PROMPT"] = "0"
+  if getEnv("GIT_SSH_COMMAND").isEmptyOrWhitespace:
+    result["GIT_SSH_COMMAND"] = "ssh -o BatchMode=yes"
 
 proc classify(code: int; output: string): GitResult =
   if code == 0: return Done
@@ -60,10 +62,9 @@ proc collect(p: Process; output: var string): GitResult =
 proc git(args: openArray[string]; output: var string): GitResult =
   output = ""
   if not hasGit(): return NoGit
-  quietGit()
   var p: Process
   try:
-    p = startProcess("git", args = args,
+    p = startProcess("git", args = args, env = quietEnv(),
                      options = {poUsePath, poStdErrToStdOut})
   except:
     return Failed

@@ -4,17 +4,37 @@ Installs coding-agent skills from a skills repository into the current project, 
 
 Skills are cloned once into nyx's data directory. Each project gets symlinks (or copies, where symlinks are unavailable) into its agent skill directories, so one clone serves every project and updates are a fast-forward away.
 
+## Install
+
+Linux and macOS (installs to `~/.local/bin`):
+
+```sh
+curl -fsSL https://github.com/planetis-m/nyx/releases/latest/download/install.sh | sh
+```
+
+Windows (PowerShell; installs to `%LOCALAPPDATA%\Programs\nyx` and adds it to the user `PATH`):
+
+```powershell
+irm https://github.com/planetis-m/nyx/releases/latest/download/install.ps1 | iex
+```
+
+The scripts pick the archive for your OS and architecture, verify it against the release's `SHA256SUMS`, and install the single `nyx` binary. Set `NYX_VERSION` to a tag such as `v0.1.0` to install a specific release, or `NYX_INSTALL_DIR` to install elsewhere.
+
+Release builds exist for Linux x86_64 and ARM64, macOS ARM64, and Windows x86_64. Nimony's native backend has no macOS x86_64 or Windows ARM64 target; on those, build from source.
+
 ## Requirements
 
-- [Nimony](https://github.com/nim-lang/nimony) 0.6.3 or newer
 - `git`
 - access to the skills repository (default: `https://github.com/planetis-m/skills`)
+- to build: [Nimony](https://github.com/nim-lang/nimony) 0.6.3 or newer
 
 ## Build
 
 ```sh
 nimony c -o:bin/nyx src/nyx.nim
 ```
+
+Release binaries are built with the native backend (`nimony n -d:release -o:bin/nyx src/nyx.nim`) by `.github/workflows/release.yml` whenever a `v*` tag is pushed.
 
 ## Usage
 
