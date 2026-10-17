@@ -207,7 +207,7 @@ proc pickSkills(skills: seq[Skill]; chosen: seq[string]): seq[string] =
   var items: seq[Choice] = @[]
   var sel: seq[bool] = @[]
   for s in skills:
-    items.add Choice(label: s.name, detail: short(s.description, 40))
+    items.add Choice(label: s.name, detail: short(s.description, 60))
     sel.add(s.name in chosen)
   choose(items, sel, minOne = true)
   result = @[]
