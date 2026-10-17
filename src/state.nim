@@ -12,7 +12,6 @@ import std/[paths, syncio, os, dirs, files, json, envvars, times]
 const
   SchemaVersion* = 1
   DefaultCheckEvery* = 30 * 24 * 60 * 60   ## seconds between lazy update checks
-  GlobalRoot* = path("")
 
 type
   InstallMode* = enum
@@ -27,7 +26,8 @@ type
     files*: seq[Path]  ## Copy only: files NYX wrote, relative to `path`
 
   Project* = object
-    root*: Path  ## canonical absolute project root; the key
+    root*: Path  ## canonical absolute project root; the key; empty when `global`
+    global*: bool  ## the user's own skill directories, not a project
     targets*: seq[string]   ## target ids
     skills*: seq[string]
     installs*: seq[Install]
@@ -62,11 +62,13 @@ proc find*(s: State; root: Path): int =
   ## Match project keys using normalized paths and the platform's case rules.
   result = -1
   for i in 0 ..< s.projects.len:
-    if s.projects[i].root == root: return i
+    if not s.projects[i].global and s.projects[i].root == root: return i
 
 proc findGlobal*(s: State): int =
-  ## Match the global project entry.
-  s.find(GlobalRoot)
+  ## The user-scope entry, or -1.
+  result = -1
+  for i in 0 ..< s.projects.len:
+    if s.projects[i].global: return i
 
 # --- project root ---------------------------------------------------------
 

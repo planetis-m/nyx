@@ -4,7 +4,7 @@ set -eu
 cd "$(dirname "$0")/.."
 mkdir -p bin
 nimony c "$@" -o:bin/nyx src/nyx.nim
-for test in tnyx tlinks trefresh; do
+for test in tnyx tlinks trefresh tpaths; do
   nimony c "$@" -r "tests/$test.nim"
 done
 nimony c "$@" -o:bin/tgitrun tests/tgitrun.nim

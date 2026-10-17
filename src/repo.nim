@@ -21,7 +21,7 @@ proc quietGit() =
   ## Fail fast instead of waiting on a password prompt nobody sees.
   try:
     putEnv("GIT_TERMINAL_PROMPT", "0")
-    if getEnv("GIT_SSH_COMMAND").len == 0:
+    if getEnv("GIT_SSH_COMMAND").isEmptyOrWhitespace:
       putEnv("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
   except:
     discard

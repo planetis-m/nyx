@@ -11,16 +11,13 @@
 import std/[paths, os, envvars, strutils]
 
 type
-  GlobalBase* = enum
-    HomeBase   ## a literal path under the user's home directory
-    ConfigBase ## `$XDG_CONFIG_HOME`, else `~/.config`; not a literal `.config`
-
   Target* = object
     id*: string              ## stable key, stored in state
     name*: string            ## shown in the wizard
     skillDir*: Path  ## project-relative skill directory
-    globalDir*: Path  ## user-level skill directory, below `globalBase`
-    globalBase: GlobalBase  ## root that `globalDir` lives under
+    globalDir*: Path  ## home-relative user-level skill directory
+    globalEnv: string  ## environment variable that relocates `globalDir`
+    globalEnvDir: Path  ## skill directory below `$globalEnv`
     markers: seq[Path]  ## project-relative paths that mean "in use"
     homeMarkers: seq[Path]  ## home-relative paths that mean "installed"
     homeEnv: string          ## environment override for the config directory
@@ -29,7 +26,8 @@ type
 
 proc allTargets*(): seq[Target] =
   @[Target(id: "claude", name: "Claude Code", skillDir: path(".claude/skills"),
-      globalDir: path(".claude/skills"), markers: @[path(".claude"), path("CLAUDE.md")],
+      globalDir: path(".claude/skills"), globalEnv: "CLAUDE_CONFIG_DIR",
+      globalEnvDir: path("skills"), markers: @[path(".claude"), path("CLAUDE.md")],
       homeMarkers: @[path(".claude")], homeEnv: "CLAUDE_CONFIG_DIR", exe: "claude"),
     Target(id: "codex", name: "Codex", skillDir: path(".agents/skills"),
       globalDir: path(".agents/skills"), markers: @[path(".codex")],
@@ -37,7 +35,8 @@ proc allTargets*(): seq[Target] =
     Target(id: "agents", name: "Agents", skillDir: path(".agents/skills"),
       globalDir: path(".agents/skills"), markers: @[path(".agents")]),
     Target(id: "crush", name: "Crush", skillDir: path(".crush/skills"),
-      globalDir: path("crush/skills"), globalBase: ConfigBase,
+      globalDir: path(".config/crush/skills"), globalEnv: "XDG_CONFIG_HOME",
+      globalEnvDir: path("crush/skills"),
       markers: @[path(".crush"), path("CRUSH.md")],
       homeMarkers: @[path(".config/crush")], homeEnv: "XDG_CONFIG_HOME", envDir: path("crush"),
       exe: "crush"),
@@ -48,7 +47,8 @@ proc allTargets*(): seq[Target] =
       globalDir: path(".cursor/skills"), markers: @[path(".cursor")],
       homeMarkers: @[path(".cursor")], exe: "cursor"),
     Target(id: "opencode", name: "OpenCode", skillDir: path(".agents/skills"),
-      globalDir: path("opencode/skills"), globalBase: ConfigBase,
+      globalDir: path(".config/opencode/skills"), globalEnv: "XDG_CONFIG_HOME",
+      globalEnvDir: path("opencode/skills"),
       markers: @[path(".opencode"), path("opencode.json"), path("opencode.jsonc")],
       homeMarkers: @[path(".config/opencode")], homeEnv: "XDG_CONFIG_HOME",
         envDir: path("opencode"),
@@ -62,7 +62,8 @@ proc allTargets*(): seq[Target] =
         path(".github/copilot-instructions.md")],
       homeMarkers: @[path(".copilot")], exe: "copilot"),
     Target(id: "windsurf", name: "Windsurf", skillDir: path(".devin/skills"),
-      globalDir: path("devin/skills"), globalBase: ConfigBase,
+      globalDir: path(".config/devin/skills"), globalEnv: "XDG_CONFIG_HOME",
+      globalEnvDir: path("devin/skills"),
       markers: @[path(".devin"), path(".windsurf"), path(".windsurfrules")],
       homeMarkers: @[path(".codeium/windsurf"), path(".config/devin")], exe: "windsurf"),
     Target(id: "roo", name: "Roo Code", skillDir: path(".roo/skills"),
@@ -86,12 +87,13 @@ proc exists(p: Path): bool = dirExists($p) or fileExists($p)
 
 proc detect*(t: Target; root, home: Path): bool =
   ## Is this agent in use in `root`, or installed for the user at `home`?
+  ## An empty `root` (the user scope) skips project markers.
   if root != path(""):
     for m in t.markers:
       if exists(root / m): return true
-  let config = if t.homeEnv.len > 0: getEnv(t.homeEnv).strip() else: ""
-  if config.len > 0:
-    if exists(path(config) / t.envDir): return true
+  let config = if t.homeEnv.len > 0: getEnv(t.homeEnv) else: ""
+  if not config.isEmptyOrWhitespace:
+    if exists(path(config.strip()) / t.envDir): return true
   elif home != path(""):
     for m in t.homeMarkers:
       if exists(home / m): return true
@@ -112,19 +114,11 @@ proc skillDirs*(ids: seq[string]): seq[Path] =
     let i = byId(id)
     if i >= 0 and all[i].skillDir notin result: result.add all[i].skillDir
 
-proc configRoot*(home: Path): Path =
-  let xdg = getEnv("XDG_CONFIG_HOME").strip()
-  if xdg.len > 0: path(xdg)
-  elif home != path(""): home / path(".config")
-  else: path(".config")
-
 proc globalSkillDir*(t: Target; home: Path): Path =
-  case t.globalBase
-  of HomeBase:
-    if home != path(""): home / t.globalDir
-    else: t.globalDir
-  of ConfigBase:
-    configRoot(home) / t.globalDir
+  ## User-level skill directory: below `$globalEnv` when set, else `home`.
+  let env = if t.globalEnv.len > 0: getEnv(t.globalEnv) else: ""
+  if not env.isEmptyOrWhitespace: path(env.strip()) / t.globalEnvDir
+  else: home / t.globalDir
 
 proc globalSkillDirs*(ids: seq[string]; home: Path): seq[Path] =
   ## Distinct user-level skill directories for the selected target ids.

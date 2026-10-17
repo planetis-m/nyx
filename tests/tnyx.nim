@@ -151,10 +151,16 @@ proc testTargets(tmp: Path) {.raises.} =
           "OpenCode falls back to ~/.config")
     check(globalSkillDir(all[byId("windsurf")], home) == home / path(".config/devin/skills"),
           "Windsurf falls back to ~/.config")
+    putEnv("XDG_CONFIG_HOME", " \t ")
+    check(globalSkillDir(all[byId("crush")], home) == home / path(".config/crush/skills"),
+          "blank XDG_CONFIG_HOME falls back to ~/.config")
+    putEnv("CLAUDE_CONFIG_DIR", $(config / path("claude")))
+    check(globalSkillDir(all[byId("claude")], home) == config / path("claude/skills"),
+          "Claude honors CLAUDE_CONFIG_DIR")
 
     # Global detection does not consider project markers
-    check(not detect(all[byId("agents")], GlobalRoot, home), "GlobalRoot ignores project markers")
-    check(detect(all[byId("crush")], GlobalRoot, home), "GlobalRoot detects home markers")
+    check(not detect(all[byId("agents")], path(""), home), "empty root ignores project markers")
+    check(detect(all[byId("crush")], path(""), home), "empty root detects home markers")
   finally:
     for (key, had, value) in saved:
       if had: putEnv(key, value)
@@ -195,7 +201,7 @@ proc testState(tmp: Path) {.raises.} =
   # State written before the Path migration must still load as strings.
   let legacy = """
     {"version":1,"lastCheck":1234,"checkEvery":2592000,"repoRev":"abc","projects":[
-      {"root":"/p","targets":["claude"],"skills":["alpha"],"installs":[
+      {"root":"/p","global":false,"targets":["claude"],"skills":["alpha"],"installs":[
         {"path":"/p/.claude/skills/alpha","skill":"alpha","mode":"Copy",
          "source":"/s/alpha","files":["SKILL.md"]}],"dirs":["/p/.claude/skills"]}]}
   """
@@ -238,18 +244,20 @@ proc testState(tmp: Path) {.raises.} =
 
   var gs = newState()
   check(gs.findGlobal() == -1, "fresh state has no global project")
-  gs.projects.add Project(root: GlobalRoot, targets: @["crush"], skills: @["alpha"],
+  gs.projects.add Project(global: true, targets: @["crush"], skills: @["alpha"],
     installs: @[Install(path: path("/home/.config/crush/skills/alpha"), skill: "alpha", mode: Link,
                         source: path("/s/alpha"))],
     dirs: @[path("/home/.config/crush/skills")])
   gs.projects.add Project(root: path("/p"), targets: @["claude"], skills: @["alpha"])
   check(gs.findGlobal() == 0, "findGlobal locates index 0")
   check(gs.find(path("/p")) == 1, "find locates regular project at index 1")
+  check(gs.find(path("")) == -1, "find never matches the global entry")
   saveState(data, gs)
   let gback = loadState(data, corrupt)
   check(not corrupt and gback.findGlobal() == 0 and gback.find(path("/p")) == 1,
         "round trip preserves global project and project together")
-  check(gback.projects[0].root == GlobalRoot, "global root restored as GlobalRoot")
+  check(gback.projects[0].global and not gback.projects[1].global,
+        "global flag survives the round trip")
 
 proc testStale() =
   var s = newState()
@@ -507,7 +515,7 @@ proc testGlobalInstall(tmp: Path) {.raises.} =
   check(crushDir == cfg / path("crush/skills"), "global crush dir under XDG")
   check(claudeDir == home / path(".claude/skills"), "global claude dir under home")
 
-  var g = Project(root: GlobalRoot)
+  var g = Project(global: true)
   var r = sync(g, store, @[crushDir, claudeDir], @["alpha"])
   check(r.placed.len == 2 and g.installs.len == 2, "global skills installed")
   check(symlinkExists(cfg / path("crush/skills/alpha")), "crush global link exists")
