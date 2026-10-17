@@ -6,11 +6,11 @@ import state, targets, catalog, repo, install, ui
 
 type
   Ctx = object
-    data: Path  ## NYX data directory
-    root: Path  ## canonical project root; unset when `global`
-    global: bool  ## user-level skill directories instead of the project
+    data: Path     ## NYX data directory
+    root: Path     ## canonical project root; unset when `global`
+    global: bool   ## user-level skill directories instead of the project
     st: State
-    corrupt: bool   ## state.json was unreadable and set aside
+    corrupt: bool  ## state.json was unreadable and set aside
 
 # --- helpers ----------------------------------------------------------------
 
