@@ -6,7 +6,7 @@
 
 import std/[paths, strutils, os, osproc, streams, envvars, strtabs]
 
-const DefaultRepo* = "https://github.com/planetis-m/skills"
+const DefaultRepo* = "https://github.com/verified-nim/skills"
 
 type GitResult* = enum
   Done, NoGit, NoAccess, Offline, Failed

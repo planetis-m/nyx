@@ -27,7 +27,7 @@ Release builds exist for Linux x86_64 and ARM64, macOS ARM64, and Windows x86_64
 ## Requirements
 
 - `git`
-- access to the skills repository (default: `https://github.com/planetis-m/skills`)
+- access to the skills repository (default: `https://github.com/verified-nim/skills`, the subscriber catalog; set `NYX_REPO=https://github.com/planetis-m/skills` for the public community skills)
 - to build: [Nimony](https://github.com/nim-lang/nimony) 0.6.3 or newer
 
 ## Build
