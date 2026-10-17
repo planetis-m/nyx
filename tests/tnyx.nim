@@ -8,7 +8,7 @@
 
 import std/paths
 import std/symlinks
-import std/[syncio, strutils, os, dirs, files, osproc, streams, envvars, tempfiles]
+import std/[syncio, strutils, os, dirs, files, osproc, streams, envvars, tempfiles, opt]
 import ../src/[state, catalog, repo, install, targets]
 import ../src/ui
 import paths, explain
@@ -168,9 +168,10 @@ proc testTargets(tmp: Path) {.raises.} =
 
 proc testState(tmp: Path) {.raises.} =
   let data = tmp / path("data")
-  var corrupt = true
-  var s = loadState(data, corrupt)
-  check(not corrupt and s.projects.len == 0, "missing state is fresh, not corrupt")
+  let fresh = loadState(data)
+  check(not fresh.corrupt and fresh.state.projects.len == 0,
+        "missing state is fresh, not corrupt")
+  var s = fresh.state
   check(s.version == SchemaVersion and s.checkEvery == DefaultCheckEvery, "fresh defaults")
   check(s.find(path("/p")) == -1, "unknown project is new")
 
@@ -183,8 +184,9 @@ proc testState(tmp: Path) {.raises.} =
     dirs: @[path("/p/.claude/skills")])
   saveState(data, s)
   check(not fileExists($(data / path("state.json.tmp"))), "temporary file renamed away")
-  var back = loadState(data, corrupt)
-  check(not corrupt, "round trip parses")
+  let round = loadState(data)
+  check(not round.corrupt, "round trip parses")
+  var back = round.state
   check(back.lastCheck == 1234 and back.repoRev == "abc", "round trip scalars")
   check(back.find(path("/p")) == 0, "existing project found")
   check(back.find(path("/p/.")) == 0, "project keys use normalized Path equality")
@@ -205,11 +207,13 @@ proc testState(tmp: Path) {.raises.} =
         {"path":"/p/.claude/skills/alpha","skill":"alpha","mode":"Copy",
          "source":"/s/alpha","files":["SKILL.md"]}],"dirs":["/p/.claude/skills"]}]}
   """
-  var ok = false
-  let old = parseState(legacy, ok)
-  check(ok and old.find(path("/p")) == 0 and
-        old.projects[0].installs[0].source == path("/s/alpha") and
-        old.projects[0].installs[0].files == @[path("SKILL.md")], "legacy state loads")
+  let old = parseState(legacy)
+  check(old.isSome, "legacy state parses")
+  let legacyState = old.get(newState())
+  check(legacyState.find(path("/p")) == 0 and
+        legacyState.projects[0].installs[0].source == path("/s/alpha") and
+        legacyState.projects[0].installs[0].files == @[path("SKILL.md")],
+        "legacy state loads")
   check(readFile($statePath(data)).find("\"data\"") < 0, "paths serialize as JSON strings")
 
   # A directory at the temporary file path makes opening it fail.
@@ -223,24 +227,25 @@ proc testState(tmp: Path) {.raises.} =
     failed = true
   check(failed, "temporary state write failure propagates")
   check(readFile($(statePath(data))) == saved, "failed save leaves previous state bytes intact")
-  back = loadState(data, corrupt)
-  check(not corrupt and back.repoRev == "abc" and back.projects.len == 1,
+  let reread = loadState(data)
+  check(not reread.corrupt, "state parses after failed save")
+  back = reread.state
+  check(back.repoRev == "abc" and back.projects.len == 1,
         "previous state remains readable after failed save")
   removeDir(data / path("state.json.tmp"))
 
   writeFile($(statePath(data)), "{\"version\": 1, \"projects\": [tru")
-  back = loadState(data, corrupt)
-  check(corrupt and back.projects.len == 0, "corrupt state starts fresh")
+  let broken = loadState(data)
+  check(broken.corrupt and broken.state.projects.len == 0,
+        "corrupt state starts fresh")
   check(fileExists($(data / path("state.json.bad"))), "corrupt state kept aside")
   check(not fileExists($(statePath(data))), "corrupt state not left in place")
 
   writeFile($(statePath(data)), "{\"version\": 99}")
-  back = loadState(data, corrupt)
-  check(corrupt, "unknown schema version is not trusted")
+  check(loadState(data).corrupt, "unknown schema version is not trusted")
 
   writeFile($(statePath(data)), "[1]")
-  back = loadState(data, corrupt)
-  check(corrupt, "non-object document is not trusted")
+  check(loadState(data).corrupt, "non-object document is not trusted")
 
   var gs = newState()
   check(gs.findGlobal() == -1, "fresh state has no global project")
@@ -253,10 +258,12 @@ proc testState(tmp: Path) {.raises.} =
   check(gs.find(path("/p")) == 1, "find locates regular project at index 1")
   check(gs.find(path("")) == -1, "find never matches the global entry")
   saveState(data, gs)
-  let gback = loadState(data, corrupt)
-  check(not corrupt and gback.findGlobal() == 0 and gback.find(path("/p")) == 1,
+  let gback = loadState(data)
+  check(not gback.corrupt, "global project round trip parses")
+  let globalState = gback.state
+  check(globalState.findGlobal() == 0 and globalState.find(path("/p")) == 1,
         "round trip preserves global project and project together")
-  check(gback.projects[0].global and not gback.projects[1].global,
+  check(globalState.projects[0].global and not globalState.projects[1].global,
         "global flag survives the round trip")
 
 proc testStale() =

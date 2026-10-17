@@ -48,7 +48,9 @@ proc advance(tmp: Path; blocked = false) {.raises.} =
   git(origin, ["commit", "-qm", "two"])
 
 proc reload(c: var Ctx) =
-  c.st = loadState(c.data, c.corrupt)
+  let loaded = loadState(c.data)
+  c.st = loaded.state
+  c.corrupt = loaded.corrupt
   if c.corrupt: quit(1)
 
 proc testRefresh*(tmp: Path): int {.raises.} =

@@ -7,7 +7,7 @@
 ##                of every skill, which projects link to (or copy from)
 
 import std/appdirs
-import std/[paths, syncio, os, dirs, files, json, envvars, times]
+import std/[paths, syncio, os, dirs, files, json, envvars, times, opt]
 
 const
   SchemaVersion* = 1
@@ -102,38 +102,39 @@ proc schemaVersion(t: var JsonTree): int64 =
     for k, v in pairs(t.root):
       if k == "version": return getInt(v, -1)
 
-proc parseState*(text: string; ok: var bool): State =
+proc parseState*(text: string): Opt[State] =
   ## Fields are read as `toJson` writes them: in declaration order, all
-  ## present. `ok` is false when `text` is not a NYX state document of the
-  ## current schema version.
-  result = newState()
+  ## present. `none` means `text` is not a NYX state document of the current
+  ## schema version.
   var t = parseJson(text)
-  ok = not hasError(t) and schemaVersion(t) == SchemaVersion
-  if not ok: return
-  result = fromJson(t, State)
-  if result.checkEvery <= 0:
-    result.checkEvery = DefaultCheckEvery
+  if hasError(t) or schemaVersion(t) != SchemaVersion: return none[State]()
+  var s = fromJson(t, State)
+  if s.checkEvery <= 0:
+    s.checkEvery = DefaultCheckEvery
+  result = some(s)
 
-proc loadState*(data: Path; corrupt: var bool): State =
+proc loadState*(data: Path): tuple[state: State, corrupt: bool] =
   ## A missing file is a fresh state. An unreadable one is set aside as
-  ## `state.json.bad` (never silently overwritten) and also starts fresh.
-  corrupt = false
+  ## `state.json.bad` (never silently overwritten) and also starts fresh;
+  ## `corrupt` reports that it had to be discarded.
+  result = (state: newState(), corrupt: false)
   let file = statePath(data)
-  if not fileExists($file): return newState()
+  if not fileExists($file): return
   var text = ""
   try:
     text = readFile($file)
   except:
-    corrupt = true
-    return newState()
-  var ok = false
-  result = parseState(text, ok)
-  if not ok:
-    corrupt = true
+    result.corrupt = true
+    return
+  let parsed = parseState(text)
+  if parsed.isNone:
+    result.corrupt = true
     try:
       moveFile(file, data / path("state.json.bad"))
     except:
       discard
+  else:
+    result.state = parsed.get(result.state)
 
 proc saveState*(data: Path; s: State) {.raises.} =
   ## Write to a temporary file, then rename over the old state, so an

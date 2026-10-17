@@ -83,7 +83,9 @@ proc context(global = false): Ctx =
     except:
       fail "cannot resolve the current directory"
       quit(1)
-  result.st = loadState(result.data, result.corrupt)
+  let loaded = loadState(result.data)
+  result.st = loaded.state
+  result.corrupt = loaded.corrupt
 
 proc notes(c: Ctx) =
   if c.corrupt:
