@@ -15,10 +15,10 @@ on:
   workflow_dispatch:
 
 env:
-  # nyx needs the stdlib ports on this branch (std/files, os.sleep, tempfiles,
-  # symlinks); move to nim-lang/nimony once they are merged there.
-  NIMONY_REPO: https://github.com/planetis-m/nimony
-  NIMONY_COMMIT: 0a20752c887064f0befd01961f7e99a4898b92e0
+  NIMONY_REPO: https://github.com/nim-lang/nimony
+  # Must be a commit on nim-lang/nimony master. `git fetch <sha>` at this depth
+  # only succeeds while GitHub still advertises the commit.
+  NIMONY_COMMIT: 2886287b74eeb134191d9ee51d8a27ae658d2e05
 
 jobs:
   build:
