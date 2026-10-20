@@ -83,6 +83,8 @@ jobs:
           cp -a nim-src/lib/packages/docutils/. nim/lib/packages/docutils/
 
       - name: Build the nimony toolchain
+        # `build all` skips arkham + nifasm while ../nativenif is missing;
+        # asking for arkham by name clones it at the pin first.
         if: steps.toolchain.outputs.cache-hit != 'true'
         working-directory: nimony
         run: |
@@ -95,9 +97,8 @@ jobs:
           exe=""
           if [ "${{ runner.os }}" = Windows ]; then exe=.exe; fi
           ../nimony/bin/nimony n -d:release -o:"dist/nyx$exe" src/nyx.nim
-          # nifasm leaves room for a signature but does not sign, and arm64
-          # macOS refuses to run unsigned code: sign ad hoc.
-          if [ "${{ runner.os }}" = macOS ]; then codesign -s - -f dist/nyx; fi
+          # On macOS nifasm signs its output ad hoc (arm64 macOS refuses
+          # unsigned code), so the smoke test below also checks the signature.
           ./dist/nyx$exe -h
 
       - name: Package
