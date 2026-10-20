@@ -10,7 +10,7 @@ import std/[appdirs, paths, syncio, os, dirs, files, json, envvars, times, opt]
 
 const
   SchemaVersion* = 1
-  DefaultCheckEvery* = 30 * 24 * 60 * 60   ## seconds between lazy update checks
+  DefaultCheckEvery* = 15 * 24 * 60 * 60   ## seconds between lazy update checks
 
 type
   InstallMode* = enum

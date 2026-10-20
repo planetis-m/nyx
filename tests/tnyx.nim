@@ -210,6 +210,7 @@ proc testState(tmp: Path) {.raises.} =
         legacyState.projects[0].installs[0].source == path("/s/alpha") and
         legacyState.projects[0].installs[0].files == @[path("SKILL.md")],
         "legacy state loads")
+  check(legacyState.checkEvery == 2592000, "stored interval is preserved")
   check(readFile($statePath(data)).find("\"data\"") < 0, "paths serialize as JSON strings")
 
   # A directory at the temporary file path makes opening it fail.
@@ -266,10 +267,12 @@ proc testStale() =
   var s = newState()
   let t = 100 * 24 * 3600
   check(isStale(s, t), "never checked is stale")
-  s.lastCheck = t - 31 * 24 * 3600
-  check(isStale(s, t), "31 days is stale")
-  s.lastCheck = t - 24 * 3600
-  check(not isStale(s, t), "1 day is current")
+  s.lastCheck = t - 16 * 24 * 3600
+  check(isStale(s, t), "16 days is stale")
+  s.lastCheck = t - 15 * 24 * 3600
+  check(isStale(s, t), "15 days is stale")
+  s.lastCheck = t - 14 * 24 * 3600
+  check(not isStale(s, t), "14 days is current")
 
 proc testRoot(tmp: Path) {.raises.} =
   let proj = tmp / path("proj")

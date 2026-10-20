@@ -90,7 +90,9 @@ State lives in the platform data directory (`~/.local/share/nyx` on Linux) or wh
 - The skills clone is only ever fast-forwarded, never reset or merged.
 - Git never prompts for credentials; missing access or a network failure leaves installed skills in place.
 
-Updates are checked lazily at most once every 30 days whenever `nyx` is run.
+Updates are checked lazily at most once every 15 days whenever `nyx` is run.
+
+A skill renamed upstream is not migrated automatically: `nyx update` keeps the old install (a link may dangle). Run `nyx setup` in each affected project to install the new name and remove the old one.
 
 ## Tests
 
