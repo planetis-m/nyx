@@ -188,4 +188,4 @@ proc choose*(items: seq[Choice]; sel: var seq[bool]; minOne: bool) =
       drawn = drawChoices(items, sel)
 
 proc done*(label, detail: string) =
-  line "  " & Gold & "+ " & Reset & alignLeft(label, 24) & dim(detail)
+  line "  " & Gold & "+ " & Reset & alignLeft(label, 25) & dim(detail)
