@@ -213,7 +213,7 @@ proc pickSkills(skills: seq[Skill]; chosen: seq[string]): seq[string] =
 # --- commands ----------------------------------------------------------------
 
 proc wizard(c: var Ctx) =
-  splash()
+  banner()
   notes(c)
   if c.global:
     field "scope", White & "user"

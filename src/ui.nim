@@ -4,7 +4,6 @@ import std/[syncio, strutils, parseutils, terminal, colors, os]
 
 const
   Logo = slurp("../assets/logo.ans")
-  WordmarkRows = 4
   Reset* = ansiResetCode
   # Fire gradient of the NYX wordmark, top row to bottom row.
   MarkColors = [(255, 226, 52), (255, 161, 23), (245, 103, 10), (226, 52, 14)]
@@ -55,14 +54,17 @@ proc stripAnsi(s: string): string =
       result.add s[i]
     inc i
 
-proc logoParts(): (seq[string], seq[string]) =
-  let all = Logo.strip(leading = false).split('\n')
-  var art: seq[string] = @[]
-  var mark: seq[string] = @[]
-  for i in 0 ..< all.len:
-    if i >= all.len - WordmarkRows: mark.add stripAnsi(all[i])
-    elif all[i].len > 0 or i < all.len - WordmarkRows - 1: art.add all[i]
-  result = (art, mark)
+proc indentOf(s: string): int =
+  s.len - s.strip(trailing = false).len
+
+proc wordmark(): seq[string] =
+  ## The logo rows with their common left indent removed.
+  result = @[]
+  var rows: seq[string] = @[]
+  for l in Logo.strip(leading = false).split('\n'): rows.add stripAnsi(l)
+  var indent = high(int)
+  for l in rows: indent = min(indent, indentOf(l))
+  for l in rows: result.add l.substr(indent)
 
 proc ignite(mark: seq[string]; ms: int) =
   ## Fade the wordmark up from ember to full fire.
@@ -76,29 +78,11 @@ proc ignite(mark: seq[string]; ms: int) =
       put "  " & markColor(MarkColors[min(i, MarkColors.high)], k) & mark[i] & Reset & "\n"
     sleepMs(ms div steps)
 
-proc splash*() =
-  ## Display the title.
-  let (art, mark) = logoParts()
-  hideCursor(stdout)
-  line()
-  for l in art:
-    put "  " & l & Reset & "\n"
-    sleepMs(600 div art.len)
-  line()
-  ignite(mark, 400)
-  showCursor(stdout)
-  line()
-
 proc banner*() =
-  ## Compact header for the non-wizard commands: just the burning wordmark.
-  let (_, mark0) = logoParts()
-  var indent = high(int)
-  for l in mark0: indent = min(indent, l.len - l.strip(trailing = false).len)
-  var mark: seq[string] = @[]
-  for l in mark0: mark.add l.substr(indent)
+  ## Header for every command: just the burning wordmark.
   hideCursor(stdout)
   line()
-  ignite(mark, 250)
+  ignite(wordmark(), 250)
   showCursor(stdout)
   line()
 
