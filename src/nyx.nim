@@ -340,12 +340,12 @@ proc remove(c: var Ctx) =
     (if rep.kept.len == 0: dim("  " & scope(c) & " is clean") else: "")
   line()
 
-proc main() =
+proc main =
   if smartcli.paramCount() == 0:
     var c = context()
     if project(c) >= 0: status(c) else: wizard(c)
     return
-  let opts = cliapp("""nyx - skills for your coding agents
+  let opts = cliapp"""nyx - skills for your coding agents
 
 Usage: nyx [setup|update|remove] [-g]
 
@@ -359,7 +359,7 @@ Commands:
 Options:
   -g, --global  Use user-level skill directories instead of this project
   -h, --help    Show this help
-""")
+"""
   var c = context(opts.global)
   case opts.command
   of cmdSetup: wizard(c)

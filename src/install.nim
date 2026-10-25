@@ -14,10 +14,10 @@ import state
 
 type
   Report* = object
-    placed*: seq[Path]  ## destinations created
-    removed*: seq[Path]  ## destinations removed
+    placed*: seq[Path]      ## destinations created
+    removed*: seq[Path]     ## destinations removed
     collisions*: seq[Path]  ## existing, not NYX's: left alone
-    kept*: seq[Path]  ## NYX's, but changed by the user: left alone
+    kept*: seq[Path]        ## NYX's, but changed by the user: left alone
     failed*: seq[Path]
 
 proc taken*(p: Path): bool =
